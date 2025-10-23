@@ -1,0 +1,83 @@
+[
+  {
+    "hook": {
+      "id": 94647,
+      "li_account": 156241,
+      "name": "test webhook",
+      "event": "linked_in_messenger.campaign_new_contact",
+      "fired_datetime": "2025-10-14 17:50:33.104655+00:00"
+    },
+    "contact": {
+      "id": 4172388,
+      "first_name": "John",
+      "last_name": "Doe",
+      "tags": [],
+      "sales_nav_tags": [],
+      "phone": "5555551234",
+      "address": null,
+      "company_name": "Example Corp",
+      "job_title": "VP of Sales",
+      "profile_link": "https://www.linkedin.com/in/johndoe/",
+      "image_link": "https://example.com/photo.jpg",
+      "email": "john.doe@example.com",
+      "public_identifier": "johndoe",
+      "object_urn": 271741157,
+      "profile_link_public_identifier": "https://www.linkedin.com/in/johndoe/",
+      "company": {
+        "name": "Example Corp",
+        "universal_name": "example-corp",
+        "website": "https://www.example.com",
+        "employee_count_start": 50,
+        "employee_count_end": 200,
+        "industries": "['Technology']",
+        "location": "San Francisco, US"
+      },
+      "follower_count": 5000,
+      "entity_fs_sales_profile": "ACwAABAycOUBHEFXuyDU0oIZtSjipagoizj8rWU",
+      "sales_nav_link": "https://www.linkedin.com/sales/lead/ACwAABAycOUBHEFXuyDU0oIZtSjipagoizj8rWU"
+    },
+    "messenger": {
+      "id": 1249576497,
+      "contact_status": "New Contact",
+      "conversation_status": "Awaiting Reply",
+      "li_account": 156241,
+      "new_messages": false,
+      "message": null,
+      "last_received_message": null,
+      "last_received_message_datetime": null,
+      "last_sent_message": null,
+      "last_sent_message_datetime": null,
+      "last_received_messages": null,
+      "last_post_liked_url": null,
+      "connected_at": "2025-10-14 17:50:25.912925+00:00",
+      "invited_at": "2025-10-13 10:30:00.000000+00:00",
+      "campaign_instance": "2025-10-08+Tobias Millington+A001+M004",
+      "note": null,
+      "placeholders": {
+        "first_name": "John",
+        "last_name": "Doe",
+        "job_title": "VP of Sales",
+        "company_name": "Example Corp",
+        "email": "john.doe@example.com",
+        "phone": "5555551234",
+        "address": "",
+        "name": "",
+        "imported_profile_link": "https://www.linkedin.com/in/johndoe/"
+      },
+      "nr_of_steps": 0,
+      "thread": null,
+      "lead_inbox_link": "https://app.expandi.io/inbox?search=John%20Doe"
+    },
+    "campaign_instance_contact": {
+      "id": 431136125,
+      "created": "2025-09-10 16:29:14.793392+00:00",
+      "nr_steps_before_responding": 0,
+      "first_reply_datetime": null,
+      "status": 2,
+      "actions": {
+        "pause": "https://api.liaufa.com/api/v1/open-api/campaign-contact/431136125/pause/",
+        "resume": "https://api.liaufa.com/api/v1/open-api/campaign-contact/431136125/resume/"
+      }
+    }
+  }
+]
