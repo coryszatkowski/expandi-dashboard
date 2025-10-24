@@ -229,11 +229,13 @@ export default function AdminDashboard() {
       // Show webhook URL from backend response
       if (response.webhook_url) {
         setGeneratedWebhookUrl(response.webhook_url);
-        alert(`LinkedIn account created successfully!\n\nWebhook URL:\n${response.webhook_url}\n\nPlease copy this URL and paste it into Expandi.`);
+        // Don't close modal yet - let user copy the webhook URL
+        loadData();
+        // Don't call closeAddLinkedInModal() here - let user close it manually after copying
+      } else {
+        loadData();
+        closeAddLinkedInModal();
       }
-      
-      loadData();
-      closeAddLinkedInModal();
     } catch (error) {
       console.error('Error creating LinkedIn account:', error);
       alert('Failed to create LinkedIn account: ' + (error.response?.data?.error || error.message));
@@ -706,9 +708,15 @@ export default function AdminDashboard() {
                                 }, 2000);
                               } catch (error) {
                                 console.error('Copy error:', error);
-                                // Show the URL in a prompt as fallback
-                                const webhookUrl = `https://api.dashboard.theorionstrategy.com/api/webhooks/expandi/account/${account.webhook_id}`;
-                                prompt('Copy this webhook URL:', webhookUrl);
+                                // Show error feedback on button
+                                const button = e.currentTarget;
+                                const originalText = button.textContent;
+                                button.textContent = 'Copy Failed';
+                                button.className = button.className.replace('bg-green-100 text-green-700 hover:bg-green-200', 'bg-red-100 text-red-700');
+                                setTimeout(() => {
+                                  button.textContent = originalText;
+                                  button.className = button.className.replace('bg-red-100 text-red-700', 'bg-green-100 text-green-700 hover:bg-green-200');
+                                }, 2000);
                               }
                             }}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
