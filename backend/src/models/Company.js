@@ -15,20 +15,28 @@ class Company {
    * @param {string} name - Company name (must be unique)
    * @returns {Object} Created company object
    */
-  static create(name) {
+  static async create(name) {
     const db = getDatabase();
     const id = uuidv4();
     const shareToken = uuidv4();
     const now = new Date().toISOString();
 
-    const stmt = db.prepare(`
-      INSERT INTO companies (id, name, share_token, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      await db.query(`
+        INSERT INTO companies (id, name, share_token, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [id, name, shareToken, now, now]);
+    } else {
+      // SQLite
+      const stmt = db.prepare(`
+        INSERT INTO companies (id, name, share_token, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, name, shareToken, now, now);
+    }
 
-    stmt.run(id, name, shareToken, now, now);
-
-    return this.findById(id);
+    return await this.findById(id);
   }
 
   /**
@@ -36,10 +44,18 @@ class Company {
    * @param {string} id - Company UUID
    * @returns {Object|null} Company object or null if not found
    */
-  static findById(id) {
+  static async findById(id) {
     const db = getDatabase();
-    const stmt = db.prepare('SELECT * FROM companies WHERE id = ?');
-    return stmt.get(id);
+    
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      const result = await db.query('SELECT * FROM companies WHERE id = $1', [id]);
+      return result.rows[0] || null;
+    } else {
+      // SQLite
+      const stmt = db.prepare('SELECT * FROM companies WHERE id = ?');
+      return stmt.get(id);
+    }
   }
 
   /**

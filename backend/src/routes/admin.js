@@ -197,9 +197,20 @@ router.get('/backfill/stats/:profileId', (req, res) => {
  * 
  * Get all companies with their statistics
  */
-router.get('/companies', (req, res) => {
+router.get('/companies', async (req, res) => {
   try {
-    const companies = Company.findAll();
+    const db = getDatabase();
+    let companies;
+    
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      const result = await db.query('SELECT * FROM companies ORDER BY created_at DESC');
+      companies = result.rows;
+    } else {
+      // SQLite
+      const stmt = db.prepare('SELECT * FROM companies ORDER BY created_at DESC');
+      companies = stmt.all();
+    }
 
     // Add KPIs for each company
     const companiesWithKPIs = companies.map(company => {
@@ -268,7 +279,7 @@ router.get('/companies/:id', (req, res) => {
  * Create a new company
  * Body: { "name": "Company Name" }
  */
-router.post('/companies', (req, res) => {
+router.post('/companies', async (req, res) => {
   try {
     const { name } = req.body;
 
@@ -279,8 +290,23 @@ router.post('/companies', (req, res) => {
       });
     }
 
+    const db = getDatabase();
+    const id = require('uuid').v4();
+    const shareToken = require('uuid').v4();
+    const now = new Date().toISOString();
+
     // Check if company with this name already exists
-    const existing = Company.findByName(name);
+    let existing;
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      const result = await db.query('SELECT id FROM companies WHERE name = $1', [name]);
+      existing = result.rows[0];
+    } else {
+      // SQLite
+      const stmt = db.prepare('SELECT id FROM companies WHERE name = ?');
+      existing = stmt.get(name);
+    }
+
     if (existing) {
       return res.status(400).json({
         success: false,
@@ -288,7 +314,29 @@ router.post('/companies', (req, res) => {
       });
     }
 
-    const company = Company.create(name);
+    // Create company
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      await db.query(`
+        INSERT INTO companies (id, name, share_token, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [id, name, shareToken, now, now]);
+    } else {
+      // SQLite
+      const stmt = db.prepare(`
+        INSERT INTO companies (id, name, share_token, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, name, shareToken, now, now);
+    }
+
+    const company = {
+      id,
+      name,
+      share_token: shareToken,
+      created_at: now,
+      updated_at: now
+    };
 
     res.status(201).json({
       success: true,
