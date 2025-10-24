@@ -34,12 +34,24 @@ router.post('/login', async (req, res) => {
     const db = getDatabase();
     
     // Find admin user
-    const stmt = db.prepare(`
-      SELECT id, username, password_hash 
-      FROM admin_users 
-      WHERE username = ?
-    `);
-    const user = stmt.get(username);
+    let user;
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      const result = await db.query(`
+        SELECT id, username, password_hash 
+        FROM admin_users 
+        WHERE username = $1
+      `, [username]);
+      user = result.rows[0];
+    } else {
+      // SQLite
+      const stmt = db.prepare(`
+        SELECT id, username, password_hash 
+        FROM admin_users 
+        WHERE username = ?
+      `);
+      user = stmt.get(username);
+    }
 
     if (!user) {
       return res.status(401).json({
@@ -211,10 +223,20 @@ router.post('/add-admin', async (req, res) => {
     const db = getDatabase();
     
     // Check if admin already exists
-    const checkStmt = db.prepare(`
-      SELECT id FROM admin_users WHERE username = ?
-    `);
-    const existingAdmin = checkStmt.get(username);
+    let existingAdmin;
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      const result = await db.query(`
+        SELECT id FROM admin_users WHERE username = $1
+      `, [username]);
+      existingAdmin = result.rows[0];
+    } else {
+      // SQLite
+      const checkStmt = db.prepare(`
+        SELECT id FROM admin_users WHERE username = ?
+      `);
+      existingAdmin = checkStmt.get(username);
+    }
 
     if (existingAdmin) {
       return res.status(400).json({
@@ -228,11 +250,20 @@ router.post('/add-admin', async (req, res) => {
     const adminId = uuidv4();
 
     // Insert new admin
-    const insertStmt = db.prepare(`
-      INSERT INTO admin_users (id, username, password_hash) 
-      VALUES (?, ?, ?)
-    `);
-    insertStmt.run(adminId, username, hashedPassword);
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      await db.query(`
+        INSERT INTO admin_users (id, username, password_hash, created_at) 
+        VALUES ($1, $2, $3, NOW())
+      `, [adminId, username, hashedPassword]);
+    } else {
+      // SQLite
+      const insertStmt = db.prepare(`
+        INSERT INTO admin_users (id, username, password_hash, created_at) 
+        VALUES (?, ?, ?, datetime('now'))
+      `);
+      insertStmt.run(adminId, username, hashedPassword);
+    }
 
     res.json({
       success: true,
@@ -258,16 +289,28 @@ router.post('/add-admin', async (req, res) => {
  * 
  * Get list of all admin users
  */
-router.get('/admins', (req, res) => {
+router.get('/admins', async (req, res) => {
   try {
     const db = getDatabase();
     
-    const stmt = db.prepare(`
-      SELECT id, username, created_at 
-      FROM admin_users 
-      ORDER BY created_at ASC
-    `);
-    const admins = stmt.all();
+    let admins;
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      // PostgreSQL
+      const result = await db.query(`
+        SELECT id, username, created_at 
+        FROM admin_users 
+        ORDER BY created_at ASC
+      `);
+      admins = result.rows;
+    } else {
+      // SQLite
+      const stmt = db.prepare(`
+        SELECT id, username, created_at 
+        FROM admin_users 
+        ORDER BY created_at ASC
+      `);
+      admins = stmt.all();
+    }
 
     res.json({
       success: true,
