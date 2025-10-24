@@ -952,7 +952,7 @@ if (global.webhookEvents) {
  * 
  * Server-Sent Events endpoint for real-time webhook monitoring
  */
-router.get('/webhooks/stream', (req, res) => {
+router.get('/webhooks/stream', async (req, res) => {
   // Set SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -975,8 +975,8 @@ router.get('/webhooks/stream', (req, res) => {
 
   // Send recent webhooks on connection
   try {
-    const db = require('../config/database').getDatabase();
-    const stmt = db.prepare(`
+    // Use database helper
+    const recentEvents = await db.selectAll(`
       SELECT 
         e.id,
         e.event_type,
@@ -1002,8 +1002,7 @@ router.get('/webhooks/stream', (req, res) => {
       LIMIT 20
     `);
     
-    const recentWebhooks = stmt.all();
-    res.write(`data: ${JSON.stringify({ type: 'recent', webhooks: recentWebhooks })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'recent', webhooks: recentEvents })}\n\n`);
   } catch (error) {
     console.error('Error sending recent webhooks:', error);
   }
@@ -1014,12 +1013,12 @@ router.get('/webhooks/stream', (req, res) => {
  * 
  * Get recent webhook events for monitoring (fallback)
  */
-router.get('/webhooks/recent', (req, res) => {
+router.get('/webhooks/recent', async (req, res) => {
   try {
-    const db = require('../config/database').getDatabase();
+    // Use database helper
     
     // Get recent events with campaign and account info
-    const stmt = db.prepare(`
+    const recentEvents = await db.selectAll(`
       SELECT 
         e.id,
         e.event_type,
@@ -1045,11 +1044,9 @@ router.get('/webhooks/recent', (req, res) => {
       LIMIT 50
     `);
     
-    const webhooks = stmt.all();
-    
     res.json({
       success: true,
-      webhooks: webhooks
+      webhooks: recentEvents
     });
   } catch (error) {
     console.error('Error fetching recent webhooks:', error);
