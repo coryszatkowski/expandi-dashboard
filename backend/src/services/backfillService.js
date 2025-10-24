@@ -45,7 +45,7 @@ class BackfillService {
       }
 
       // 3. Verify profile exists
-      const profile = Profile.findById(profileId);
+      const profile = await Profile.findById(profileId);
       if (!profile) {
         throw new Error('Profile not found');
       }
@@ -166,7 +166,7 @@ class BackfillService {
 
     try {
       // Check if contact already exists in this specific campaign
-      const existingContact = Contact.findByContactIdAndCampaign(contactData.id, campaignId);
+      const existingContact = await Contact.findByContactIdAndCampaign(contactData.id, campaignId);
       
       if (existingContact) {
         if (skipExisting) {
@@ -175,7 +175,7 @@ class BackfillService {
           return result;
         } else if (updateExisting) {
           // Update existing contact with new data
-          Contact.update(contactData.id, campaignId, {
+          await Contact.update(contactData.id, campaignId, {
             first_name: contactData.first_name || existingContact.first_name,
             last_name: contactData.last_name || existingContact.last_name,
             company_name: contactData.company_name || existingContact.company_name,
@@ -188,7 +188,7 @@ class BackfillService {
         }
       } else {
         // Create new contact in this campaign using findOrCreate (like webhooks)
-        Contact.findOrCreate({
+        await Contact.findOrCreate({
           contact_id: contactData.id,
           campaign_id: campaignId,
           first_name: contactData.first_name,
@@ -209,7 +209,7 @@ class BackfillService {
         
         for (const eventData of events) {
           try {
-            Event.create(eventData);
+            await Event.create(eventData);
             result.eventsCreated++;
           } catch (error) {
             console.error(`Failed to create event for contact ${contactData.id}:`, error);
@@ -310,7 +310,7 @@ class BackfillService {
    */
   static async findOrCreateCampaign(profileId, campaignName, backfillDate) {
     // Look for existing campaign with similar name
-    const existingCampaign = Campaign.findByProfileAndName(profileId, campaignName);
+    const existingCampaign = await Campaign.findByProfileAndName(profileId, campaignName);
     
     if (existingCampaign) {
       return existingCampaign;
@@ -324,7 +324,7 @@ class BackfillService {
       started_at: backfillDate
     };
 
-    return Campaign.create(campaignData);
+    return await Campaign.create(campaignData);
   }
 
 }
