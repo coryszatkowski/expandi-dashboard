@@ -93,7 +93,15 @@ class BackfillService {
           // Find or create campaign
           console.log(`🔍 Looking for or creating campaign: ${campaignName}`);
           const campaign = await this.findOrCreateCampaign(profileId, campaignName, campaignContacts[0].invited_at);
-          console.log(`✅ Campaign result:`, campaign ? `Found/created campaign with ID: ${campaign.id}` : 'Campaign creation failed');
+          
+          if (!campaign) {
+            console.error(`❌ Campaign creation failed for: ${campaignName}`);
+            campaignResult.errors.push(`Failed to create campaign: ${campaignName}`);
+            results.errors.push(`Campaign creation failed: ${campaignName}`);
+            continue; // Skip this campaign entirely
+          }
+          
+          console.log(`✅ Campaign result: Found/created campaign with ID: ${campaign.id}`);
           
           const campaignResult = {
             campaignName,
@@ -364,9 +372,14 @@ class BackfillService {
       started_at: backfillDate
     };
 
-    const newCampaign = await Campaign.create(campaignData);
-    console.log(`✅ Created new campaign: ${newCampaign.id} - ${newCampaign.campaign_name}`);
-    return newCampaign;
+    try {
+      const newCampaign = await Campaign.create(campaignData);
+      console.log(`✅ Created new campaign: ${newCampaign.id} - ${newCampaign.campaign_name}`);
+      return newCampaign;
+    } catch (error) {
+      console.error(`❌ Failed to create campaign: ${campaignName}`, error);
+      throw error;
+    }
   }
 
 }
