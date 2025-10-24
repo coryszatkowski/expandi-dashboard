@@ -426,6 +426,7 @@ router.delete('/companies/:id', async (req, res) => {
  */
 router.get('/linkedin-accounts', async (req, res) => {
   try {
+    console.log('linkedin-accounts endpoint called');
     const filters = {};
 
     if (req.query.status) {
@@ -436,7 +437,9 @@ router.get('/linkedin-accounts', async (req, res) => {
       filters.company_id = req.query.company_id;
     }
 
-    const profiles = Profile.findAll(filters);
+    console.log('Calling Profile.findAll with filters:', filters);
+    const profiles = await Profile.findAll(filters);
+    console.log('Profile.findAll returned:', profiles, 'Type:', typeof profiles, 'Is Array:', Array.isArray(profiles));
 
     res.json({
       success: true,

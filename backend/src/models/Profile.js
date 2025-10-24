@@ -98,45 +98,55 @@ class Profile {
    * @returns {Array} Array of profile objects
    */
   static async findAll(filters = {}) {
-    let query = `
-      SELECT p.*, c.name as company_name
-      FROM profiles p
-      LEFT JOIN companies c ON p.company_id = c.id
-      WHERE 1=1
-    `;
-    const params = [];
+    try {
+      console.log('Profile.findAll called with filters:', filters);
+      
+      let query = `
+        SELECT p.*, c.name as company_name
+        FROM profiles p
+        LEFT JOIN companies c ON p.company_id = c.id
+        WHERE 1=1
+      `;
+      const params = [];
 
-    if (filters.status) {
-      query += ' AND p.status = ?';
-      params.push(filters.status);
+      if (filters.status) {
+        query += ' AND p.status = ?';
+        params.push(filters.status);
+      }
+
+      if (filters.company_id) {
+        query += ' AND p.company_id = ?';
+        params.push(filters.company_id);
+      }
+
+      query += ' ORDER BY p.account_name';
+
+      console.log('Executing query:', query, 'with params:', params);
+      const profiles = await db.selectAll(query, params);
+      console.log('Raw profiles from database:', profiles);
+
+      // Add statistics for each profile
+      const profilesWithStats = [];
+      for (const profile of profiles) {
+        // Count campaigns
+        const campaignsResult = await db.selectOne(`
+          SELECT COUNT(*) as count 
+          FROM campaigns 
+          WHERE profile_id = ?
+        `, [profile.id]);
+
+        profilesWithStats.push({
+          ...profile,
+          campaigns_count: campaignsResult.count
+        });
+      }
+
+      console.log('Final profiles with stats:', profilesWithStats);
+      return profilesWithStats;
+    } catch (error) {
+      console.error('Error in Profile.findAll:', error);
+      throw error;
     }
-
-    if (filters.company_id) {
-      query += ' AND p.company_id = ?';
-      params.push(filters.company_id);
-    }
-
-    query += ' ORDER BY p.account_name';
-
-    const profiles = await db.selectAll(query, params);
-
-    // Add statistics for each profile
-    const profilesWithStats = [];
-    for (const profile of profiles) {
-      // Count campaigns
-      const campaignsResult = await db.selectOne(`
-        SELECT COUNT(*) as count 
-        FROM campaigns 
-        WHERE profile_id = ?
-      `, [profile.id]);
-
-      profilesWithStats.push({
-        ...profile,
-        campaigns_count: campaignsResult.count
-      });
-    }
-
-    return profilesWithStats;
   }
 
   /**
