@@ -199,37 +199,28 @@ export default function AdminDashboard() {
     setCopiedToClipboard(false);
   };
 
-  const generateWebhookUrl = (accountName) => {
-    if (!accountName.trim()) {
-      setGeneratedWebhookUrl('');
-      setGeneratedAccountId('');
-      return;
-    }
-
-    // Generate a unique account ID based on timestamp and account name
-    const timestamp = Date.now();
-    const nameHash = accountName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 8);
-    const accountId = parseInt(`${timestamp.toString().slice(-6)}${nameHash.length > 0 ? nameHash.charCodeAt(0) : 0}`);
-    
-    setGeneratedAccountId(accountId);
-    setGeneratedWebhookUrl(`https://api.dashboard.theorionstrategy.com/api/webhooks/expandi/account/${accountId}`);
-  };
 
   const handleCreateLinkedInAccount = async (e) => {
     e.preventDefault();
-    if (!generatedAccountId) {
-      alert('Please enter an account name first');
+    if (!newLinkedInAccount.account_name.trim()) {
+      alert('Please enter an account name');
       return;
     }
 
     try {
       const response = await createLinkedInAccount({
-        ...newLinkedInAccount,
-        li_account_id: generatedAccountId
+        account_name: newLinkedInAccount.account_name,
+        company_id: newLinkedInAccount.company_id || null
       });
+      
+      // Show webhook URL from backend response
+      if (response.webhook_url) {
+        setGeneratedWebhookUrl(response.webhook_url);
+        alert(`LinkedIn account created successfully!\n\nWebhook URL:\n${response.webhook_url}\n\nPlease copy this URL and paste it into Expandi.`);
+      }
+      
       loadData();
       closeAddLinkedInModal();
-      alert('LinkedIn account created successfully!');
     } catch (error) {
       console.error('Error creating LinkedIn account:', error);
       alert('Failed to create LinkedIn account: ' + (error.response?.data?.error || error.message));
@@ -901,7 +892,6 @@ export default function AdminDashboard() {
                     value={newLinkedInAccount.account_name}
                     onChange={(e) => {
                       setNewLinkedInAccount({...newLinkedInAccount, account_name: e.target.value});
-                      generateWebhookUrl(e.target.value);
                     }}
                     placeholder="e.g., John Doe"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
@@ -950,10 +940,10 @@ export default function AdminDashboard() {
                   <h5 className="text-sm font-medium text-blue-800 mb-2">Instructions:</h5>
                   <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                     <li>Enter the account name above</li>
-                    <li>Copy the generated webhook URL</li>
+                    <li>Click "Create Account" below to save it to your dashboard</li>
+                    <li>Copy the generated webhook URL that appears after creation</li>
                     <li>In Expandi, go to your LinkedIn account settings</li>
                     <li>Paste the webhook URL in the webhook settings</li>
-                    <li>Click "Create Account" below to save it to your dashboard</li>
                   </ol>
                 </div>
 
