@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'https://backend-production-b2e1.up.railway.app';
 
 const api = axios.create({
   baseURL: API_URL,
