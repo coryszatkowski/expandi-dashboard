@@ -665,7 +665,7 @@ export default function AdminDashboard() {
                           <button
                             onClick={async (e) => {
                               try {
-                                const webhookUrl = `${window.location.origin}/api/webhooks/${account.webhook_id}`;
+                                const webhookUrl = `https://api.dashboard.theorionstrategy.com/api/webhooks/expandi/account/${account.webhook_id}`;
                                 console.log('Webhook URL:', webhookUrl); // Debug log
                                 
                                 // Try modern clipboard API first
@@ -697,7 +697,7 @@ export default function AdminDashboard() {
                               } catch (error) {
                                 console.error('Copy error:', error);
                                 // Show the URL in a prompt as fallback
-                                const webhookUrl = `${window.location.origin}/api/webhooks/${account.webhook_id}`;
+                                const webhookUrl = `https://api.dashboard.theorionstrategy.com/api/webhooks/expandi/account/${account.webhook_id}`;
                                 prompt('Copy this webhook URL:', webhookUrl);
                               }
                             }}
