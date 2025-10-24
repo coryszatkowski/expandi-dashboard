@@ -212,21 +212,16 @@ router.get('/companies', async (req, res) => {
       companies = stmt.all();
     }
 
-    // Add KPIs for each company
+    // Add empty KPIs for each company (AnalyticsService needs PostgreSQL update)
     const companiesWithKPIs = companies.map(company => {
-      try {
-        const kpis = AnalyticsService.getCompanyDashboard(company.id, {}).kpis;
-        return {
-          ...company,
-          ...kpis
-        };
-      } catch (error) {
-        console.error(`Error getting KPIs for company ${company.id}:`, error);
-        return {
-          ...company,
-          ...AnalyticsService.emptyKPIs()
-        };
-      }
+      return {
+        ...company,
+        invites_sent: 0,
+        connections: 0,
+        replies: 0,
+        connection_rate: 0,
+        reply_rate: 0
+      };
     });
 
     res.json({
