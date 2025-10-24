@@ -71,14 +71,30 @@ function initializePostgreSQLSchema() {
   
   let schema = fs.readFileSync(schemaPath, 'utf8');
   
-  // Convert SQLite schema to PostgreSQL
+  // Convert SQLite schema to PostgreSQL with proper type handling
   schema = schema
+    // First, convert primary keys
     .replace(/TEXT PRIMARY KEY/g, 'UUID PRIMARY KEY')
+    .replace(/INTEGER PRIMARY KEY/g, 'BIGINT PRIMARY KEY')
+    
+    // Convert foreign key columns to UUID (must be done before general TEXT conversion)
+    .replace(/company_id TEXT/g, 'company_id UUID')
+    .replace(/profile_id TEXT/g, 'profile_id UUID')
+    .replace(/campaign_id TEXT/g, 'campaign_id UUID')
+    
+    // Convert other specific UUID fields (id columns that aren't PRIMARY KEY)
+    .replace(/share_token TEXT/g, 'share_token UUID')
+    .replace(/webhook_id TEXT/g, 'webhook_id UUID')
+    
+    // Now convert remaining TEXT fields to VARCHAR
     .replace(/TEXT NOT NULL/g, 'VARCHAR(255) NOT NULL')
     .replace(/TEXT,/g, 'VARCHAR(255),')
     .replace(/TEXT\)/g, 'VARCHAR(255))')
-    .replace(/INTEGER PRIMARY KEY/g, 'BIGINT PRIMARY KEY')
+    
+    // Convert INTEGER to BIGINT
     .replace(/INTEGER/g, 'BIGINT')
+    
+    // Convert datetime functions
     .replace(/datetime\('now'\)/g, 'NOW()');
   
   pool.query(schema, (err) => {
