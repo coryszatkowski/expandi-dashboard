@@ -212,7 +212,7 @@ export default function AdminDashboard() {
     const accountId = parseInt(`${timestamp.toString().slice(-6)}${nameHash.length > 0 ? nameHash.charCodeAt(0) : 0}`);
     
     setGeneratedAccountId(accountId);
-    setGeneratedWebhookUrl(`https://breezy-things-talk.loca.lt/api/webhooks/expandi/account/${accountId}`);
+    setGeneratedWebhookUrl(`https://api.dashboard.theorionstrategy.com/api/webhooks/expandi/account/${accountId}`);
   };
 
   const handleCreateLinkedInAccount = async (e) => {
