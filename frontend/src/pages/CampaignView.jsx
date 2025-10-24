@@ -120,6 +120,25 @@ export default function CampaignView() {
         </div>
       </Header>
 
+      {/* Page Title Section */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{campaign.campaign_name}</h1>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                {campaign.account_name}
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Started: {formatDate(campaign.started_at)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}
         <div className="mb-6">

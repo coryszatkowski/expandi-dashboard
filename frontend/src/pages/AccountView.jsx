@@ -118,6 +118,21 @@ export default function AccountView() {
         </div>
       </Header>
 
+      {/* Page Title Section */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">{account.account_name}</h1>
+            {account.company_name && (
+              <p className="mt-1 text-sm text-gray-500">{account.company_name}</p>
+            )}
+            {account.account_email && (
+              <p className="mt-1 text-sm text-gray-500">{account.account_email}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}
         <div className="mb-6">
