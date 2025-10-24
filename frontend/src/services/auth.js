@@ -54,7 +54,7 @@ export const getCurrentUser = () => {
  */
 export const login = async (username, password) => {
   try {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
+    const response = await fetch(`${API_URL.replace(/\/$/, '')}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

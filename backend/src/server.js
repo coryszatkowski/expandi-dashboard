@@ -33,7 +33,7 @@ app.use(express.json());
 // CORS configuration - allow multiple origins
 const allowedOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',')
-  : ['http://localhost:5173'];
+  : ['http://localhost:5173', 'https://frontend-production-4133.up.railway.app'];
 
 app.use(cors({
   origin: (origin, callback) => {
