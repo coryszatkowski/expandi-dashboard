@@ -200,7 +200,7 @@ router.get('/backfill/stats/:profileId', async (req, res) => {
  */
 router.get('/companies', async (req, res) => {
   try {
-    const companies = await db.selectAll('SELECT * FROM companies ORDER BY created_at DESC');
+    const companies = await Company.findAll();
 
     // Get KPIs for each company using AnalyticsService
     const companiesWithKPIs = [];
@@ -919,7 +919,7 @@ router.get('/stats', async (req, res) => {
         total_profiles: allAccounts.length,
         assigned_profiles: allAccounts.filter(a => a.status === 'assigned').length,
         unassigned_profiles: unassignedAccounts.length,
-        total_campaigns: allAccounts.reduce((sum, a) => sum + a.campaigns_count, 0)
+        total_campaigns: allAccounts.reduce((sum, a) => sum + parseInt(a.campaigns_count || 0, 10), 0)
       }
     });
   } catch (error) {

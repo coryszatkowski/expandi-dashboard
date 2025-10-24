@@ -359,12 +359,12 @@ router.delete('/:shareToken/campaign/:campaignId', (req, res) => {
  * Export dashboard data as CSV
  * Query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
  */
-router.get('/:shareToken/export', (req, res) => {
+router.get('/:shareToken/export', async (req, res) => {
   try {
     const { shareToken } = req.params;
 
     // Find company by share token
-    const company = Company.findByShareToken(shareToken);
+    const company = await Company.findByShareToken(shareToken);
 
     if (!company) {
       return res.status(404).json({
@@ -383,7 +383,7 @@ router.get('/:shareToken/export', (req, res) => {
     }
 
     // Generate CSV
-    const csv = AnalyticsService.generateCSVExport(company.id, options);
+    const csv = await AnalyticsService.generateCSVExport(company.id, options);
 
     // Set headers for file download
     res.setHeader('Content-Type', 'text/csv');
