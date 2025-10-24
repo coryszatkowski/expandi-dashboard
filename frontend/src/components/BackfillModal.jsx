@@ -71,7 +71,7 @@ export default function BackfillModal({ isOpen, onClose, profileId, profileName,
       formData.append('skipExisting', duplicateHandling === 'skip');
       formData.append('updateExisting', duplicateHandling === 'update');
 
-      const response = await fetch(`${API_URL}/api/admin/backfill`, {
+      const response = await fetch(`${API_URL.replace(/\/$/, '')}/api/admin/backfill`, {
         method: 'POST',
         body: formData
       });
