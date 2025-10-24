@@ -31,27 +31,45 @@ class BackfillService {
       updateExisting = false
     } = options;
 
+    console.log('🔄 Starting CSV backfill process:', {
+      profileId,
+      filePath,
+      skipExisting,
+      updateExisting
+    });
+
     try {
       // 1. Validate CSV file
+      console.log('📋 Step 1: Validating CSV structure...');
       const validation = await CSVParser.validateCSVStructure(filePath);
+      console.log('📋 CSV validation result:', validation);
+      
       if (!validation.isValid) {
         throw new Error(`Invalid CSV structure. Missing columns: ${validation.missingColumns.join(', ')}`);
       }
 
       // 2. Parse CSV data
+      console.log('📊 Step 2: Parsing CSV data...');
       const contacts = await CSVParser.parseORIONLeadSheet(filePath);
+      console.log(`📊 Parsed ${contacts.length} contacts from CSV`);
+      
       if (contacts.length === 0) {
         throw new Error('No valid contacts found in CSV file');
       }
 
       // 3. Verify profile exists
+      console.log('👤 Step 3: Verifying profile exists...');
       const profile = await Profile.findById(profileId);
+      console.log('👤 Profile lookup result:', profile ? `Found profile: ${profile.account_name}` : 'Profile not found');
+      
       if (!profile) {
         throw new Error('Profile not found');
       }
 
       // 4. Group contacts by campaign
+      console.log('📁 Step 4: Grouping contacts by campaign...');
       const campaignGroups = this.groupContactsByCampaign(contacts);
+      console.log(`📁 Found ${Object.keys(campaignGroups).length} campaigns:`, Object.keys(campaignGroups));
 
       // 5. Process each campaign
       const results = {
@@ -70,9 +88,12 @@ class BackfillService {
       };
 
       for (const [campaignName, campaignContacts] of Object.entries(campaignGroups)) {
+        console.log(`🎯 Processing campaign: ${campaignName} with ${campaignContacts.length} contacts`);
         try {
           // Find or create campaign
+          console.log(`🔍 Looking for or creating campaign: ${campaignName}`);
           const campaign = await this.findOrCreateCampaign(profileId, campaignName, campaignContacts[0].invited_at);
+          console.log(`✅ Campaign result:`, campaign ? `Found/created campaign with ID: ${campaign.id}` : 'Campaign creation failed');
           
           const campaignResult = {
             campaignName,
@@ -85,6 +106,7 @@ class BackfillService {
 
           // Process each contact in this campaign
           for (const contactData of campaignContacts) {
+            console.log(`👤 Processing contact: ${contactData.id} (${contactData.first_name} ${contactData.last_name})`);
             try {
               const result = await this.processHistoricalContact(
                 contactData,
@@ -93,6 +115,12 @@ class BackfillService {
                 skipExisting,
                 updateExisting
               );
+              console.log(`✅ Contact ${contactData.id} result:`, {
+                created: result.contactCreated,
+                updated: result.contactUpdated,
+                skipped: result.contactSkipped,
+                eventsCreated: result.eventsCreated
+              });
               
               campaignResult.contactsCreated += result.contactCreated ? 1 : 0;
               campaignResult.contactsUpdated += result.contactUpdated ? 1 : 0;
@@ -157,6 +185,8 @@ class BackfillService {
    * @returns {Object} Processing result
    */
   static async processHistoricalContact(contactData, campaignId, backfillDate, skipExisting, updateExisting) {
+    console.log(`🔍 Processing contact ${contactData.id} in campaign ${campaignId}`);
+    
     const result = {
       contactCreated: false,
       contactUpdated: false,
@@ -166,7 +196,9 @@ class BackfillService {
 
     try {
       // Check if contact already exists in this specific campaign
+      console.log(`🔍 Checking if contact ${contactData.id} exists in campaign ${campaignId}`);
       const existingContact = await Contact.findByContactIdAndCampaign(contactData.id, campaignId);
+      console.log(`🔍 Existing contact check result:`, existingContact ? 'Contact exists' : 'Contact does not exist');
       
       if (existingContact) {
         if (skipExisting) {
@@ -175,6 +207,7 @@ class BackfillService {
           return result;
         } else if (updateExisting) {
           // Update existing contact with new data
+          console.log(`🔄 Updating existing contact ${contactData.id}`);
           await Contact.update(contactData.id, campaignId, {
             first_name: contactData.first_name || existingContact.first_name,
             last_name: contactData.last_name || existingContact.last_name,
@@ -185,10 +218,12 @@ class BackfillService {
             phone: contactData.phone || existingContact.phone
           });
           result.contactUpdated = true;
+          console.log(`✅ Contact ${contactData.id} updated successfully`);
         }
       } else {
         // Create new contact in this campaign using findOrCreate (like webhooks)
-        await Contact.findOrCreate({
+        console.log(`➕ Creating new contact ${contactData.id} in campaign ${campaignId}`);
+        const newContact = await Contact.findOrCreate({
           contact_id: contactData.id,
           campaign_id: campaignId,
           first_name: contactData.first_name,
@@ -200,6 +235,7 @@ class BackfillService {
           phone: contactData.phone
         });
         result.contactCreated = true;
+        console.log(`✅ Contact ${contactData.id} created successfully:`, newContact ? 'Contact object returned' : 'No contact object returned');
       }
 
       // Only create events if we're not skipping
@@ -309,14 +345,18 @@ class BackfillService {
    * @returns {Object} Campaign object
    */
   static async findOrCreateCampaign(profileId, campaignName, backfillDate) {
+    console.log(`🔍 Looking for existing campaign: ${campaignName} for profile ${profileId}`);
+    
     // Look for existing campaign with similar name
     const existingCampaign = await Campaign.findByProfileAndName(profileId, campaignName);
     
     if (existingCampaign) {
+      console.log(`✅ Found existing campaign: ${existingCampaign.id} - ${existingCampaign.campaign_name}`);
       return existingCampaign;
     }
 
     // Create new campaign for historical data
+    console.log(`➕ Creating new campaign: ${campaignName} for profile ${profileId}`);
     const campaignData = {
       profile_id: profileId,
       campaign_instance: campaignName,
@@ -324,7 +364,9 @@ class BackfillService {
       started_at: backfillDate
     };
 
-    return await Campaign.create(campaignData);
+    const newCampaign = await Campaign.create(campaignData);
+    console.log(`✅ Created new campaign: ${newCampaign.id} - ${newCampaign.campaign_name}`);
+    return newCampaign;
   }
 
 }
