@@ -90,7 +90,7 @@ router.post('/backfill', upload.single('file'), async (req, res) => {
 
 
     // Validate profile exists
-    const profile = Profile.findById(profileId);
+    const profile = await Profile.findById(profileId);
     if (!profile) {
       return res.status(404).json({
         success: false,
@@ -159,12 +159,12 @@ router.use((error, req, res, next) => {
  * 
  * Get backfill statistics for a profile
  */
-router.get('/backfill/stats/:profileId', (req, res) => {
+router.get('/backfill/stats/:profileId', async (req, res) => {
   try {
     const { profileId } = req.params;
     
     // Validate profile exists
-    const profile = Profile.findById(profileId);
+    const profile = await Profile.findById(profileId);
     if (!profile) {
       return res.status(404).json({
         success: false,
@@ -239,9 +239,9 @@ router.get('/companies', async (req, res) => {
  * 
  * Get a single company by ID
  */
-router.get('/companies/:id', (req, res) => {
+router.get('/companies/:id', async (req, res) => {
   try {
-    const company = Company.findById(req.params.id);
+    const company = await Company.findById(req.params.id);
 
     if (!company) {
       return res.status(404).json({
@@ -316,9 +316,9 @@ router.post('/companies', async (req, res) => {
  * Update a company
  * Body: { "name": "New Company Name" }
  */
-router.put('/companies/:id', (req, res) => {
+router.put('/companies/:id', async (req, res) => {
   try {
-    const company = Company.findById(req.params.id);
+    const company = await Company.findById(req.params.id);
 
     if (!company) {
       return res.status(404).json({
@@ -327,7 +327,7 @@ router.put('/companies/:id', (req, res) => {
       });
     }
 
-    const updated = Company.update(req.params.id, req.body);
+    const updated = await Company.update(req.params.id, req.body);
 
     res.json({
       success: true,
@@ -348,9 +348,9 @@ router.put('/companies/:id', (req, res) => {
  * 
  * Regenerate share token for a company
  */
-router.post('/companies/:id/regenerate-token', (req, res) => {
+router.post('/companies/:id/regenerate-token', async (req, res) => {
   try {
-    const company = Company.findById(req.params.id);
+    const company = await Company.findById(req.params.id);
 
     if (!company) {
       return res.status(404).json({
@@ -359,7 +359,7 @@ router.post('/companies/:id/regenerate-token', (req, res) => {
       });
     }
 
-    const updated = Company.regenerateShareToken(req.params.id);
+    const updated = await Company.regenerateShareToken(req.params.id);
 
     res.json({
       success: true,
@@ -381,9 +381,9 @@ router.post('/companies/:id/regenerate-token', (req, res) => {
  * 
  * Delete a company
  */
-router.delete('/companies/:id', (req, res) => {
+router.delete('/companies/:id', async (req, res) => {
   try {
-    const company = Company.findById(req.params.id);
+    const company = await Company.findById(req.params.id);
 
     if (!company) {
       return res.status(404).json({
@@ -392,7 +392,7 @@ router.delete('/companies/:id', (req, res) => {
       });
     }
 
-    const deleted = Company.delete(req.params.id);
+    const deleted = await Company.delete(req.params.id);
 
     if (!deleted) {
       return res.status(404).json({
@@ -424,7 +424,7 @@ router.delete('/companies/:id', (req, res) => {
  * GET /api/admin/linkedin-accounts
  * Legacy endpoint - redirects to profiles
  */
-router.get('/linkedin-accounts', (req, res) => {
+router.get('/linkedin-accounts', async (req, res) => {
   try {
     const filters = {};
 
@@ -478,7 +478,7 @@ router.get('/linkedin-accounts/unassigned', async (req, res) => {
  * POST /api/admin/linkedin-accounts
  * Legacy endpoint - redirects to profiles
  */
-router.post('/linkedin-accounts', (req, res) => {
+router.post('/linkedin-accounts', async (req, res) => {
   try {
     const { account_name, li_account_id, company_id } = req.body;
 
@@ -505,7 +505,7 @@ router.post('/linkedin-accounts', (req, res) => {
 
     // If company_id is provided, verify it exists
     if (company_id) {
-      const company = Company.findById(company_id);
+      const company = await Company.findById(company_id);
       if (!company) {
         return res.status(404).json({
           success: false,
@@ -515,7 +515,7 @@ router.post('/linkedin-accounts', (req, res) => {
     }
 
     // Create the Profile (webhook_id will be auto-generated)
-    const profile = Profile.create({
+    const profile = await Profile.create({
       account_name,
       li_account_id: li_account_id || null,
       company_id: company_id || null
@@ -541,7 +541,7 @@ router.post('/linkedin-accounts', (req, res) => {
  * PUT /api/admin/linkedin-accounts/:id/assign
  * Legacy endpoint - redirects to profiles
  */
-router.put('/linkedin-accounts/:id/assign', (req, res) => {
+router.put('/linkedin-accounts/:id/assign', async (req, res) => {
   try {
     const { id } = req.params;
     const { company_id } = req.body;
@@ -554,7 +554,7 @@ router.put('/linkedin-accounts/:id/assign', (req, res) => {
     }
 
     // Verify company exists
-    const company = Company.findById(company_id);
+    const company = await Company.findById(company_id);
     if (!company) {
       return res.status(404).json({
         success: false,
@@ -563,7 +563,7 @@ router.put('/linkedin-accounts/:id/assign', (req, res) => {
     }
 
     // Assign profile to company
-    const profile = Profile.assignToCompany(id, company_id);
+    const profile = await Profile.assignToCompany(id, company_id);
 
     if (!profile) {
       return res.status(404).json({
@@ -591,11 +591,11 @@ router.put('/linkedin-accounts/:id/assign', (req, res) => {
  * PUT /api/admin/linkedin-accounts/:id/unassign
  * Legacy endpoint - redirects to profiles
  */
-router.put('/linkedin-accounts/:id/unassign', (req, res) => {
+router.put('/linkedin-accounts/:id/unassign', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const profile = Profile.unassign(id);
+    const profile = await Profile.unassign(id);
 
     if (!profile) {
       return res.status(404).json({
@@ -623,11 +623,11 @@ router.put('/linkedin-accounts/:id/unassign', (req, res) => {
  * DELETE /api/admin/linkedin-accounts/:id
  * Legacy endpoint - redirects to profiles
  */
-router.delete('/linkedin-accounts/:id', (req, res) => {
+router.delete('/linkedin-accounts/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const deleted = Profile.delete(id);
+    const deleted = await Profile.delete(id);
 
     if (!deleted) {
       return res.status(404).json({
@@ -717,7 +717,7 @@ router.get('/profiles/unassigned', async (req, res) => {
  * Assign a Profile to a company
  * Body: { "company_id": "uuid" }
  */
-router.put('/profiles/:id/assign', (req, res) => {
+router.put('/profiles/:id/assign', async (req, res) => {
   try {
     const { company_id } = req.body;
 
@@ -729,7 +729,7 @@ router.put('/profiles/:id/assign', (req, res) => {
     }
 
     // Verify company exists
-    const company = Company.findById(company_id);
+    const company = await Company.findById(company_id);
     if (!company) {
       return res.status(404).json({
         success: false,
@@ -738,7 +738,7 @@ router.put('/profiles/:id/assign', (req, res) => {
     }
 
     // Verify account exists
-    const account = Profile.findById(req.params.id);
+    const account = await Profile.findById(req.params.id);
     if (!account) {
       return res.status(404).json({
         success: false,
@@ -747,7 +747,7 @@ router.put('/profiles/:id/assign', (req, res) => {
     }
 
     // Assign account to company
-    const updated = Profile.assignToCompany(req.params.id, company_id);
+    const updated = await Profile.assignToCompany(req.params.id, company_id);
 
     res.json({
       success: true,
@@ -769,9 +769,9 @@ router.put('/profiles/:id/assign', (req, res) => {
  * 
  * Unassign a Profile from its company
  */
-router.put('/profiles/:id/unassign', (req, res) => {
+router.put('/profiles/:id/unassign', async (req, res) => {
   try {
-    const account = Profile.findById(req.params.id);
+    const account = await Profile.findById(req.params.id);
 
     if (!account) {
       return res.status(404).json({
@@ -780,7 +780,7 @@ router.put('/profiles/:id/unassign', (req, res) => {
       });
     }
 
-    const updated = Profile.unassign(req.params.id);
+    const updated = await Profile.unassign(req.params.id);
 
     res.json({
       success: true,
@@ -803,7 +803,7 @@ router.put('/profiles/:id/unassign', (req, res) => {
  * Create a new Profile manually
  * Body: { "account_name": "string", "li_account_id": number, "company_id": "uuid" (optional) }
  */
-router.post('/profiles', (req, res) => {
+router.post('/profiles', async (req, res) => {
   try {
     const { account_name, li_account_id, company_id } = req.body;
 
@@ -830,7 +830,7 @@ router.post('/profiles', (req, res) => {
 
     // If company_id is provided, verify it exists
     if (company_id) {
-      const company = Company.findById(company_id);
+      const company = await Company.findById(company_id);
       if (!company) {
         return res.status(404).json({
           success: false,
@@ -840,7 +840,7 @@ router.post('/profiles', (req, res) => {
     }
 
     // Create the Profile (webhook_id will be auto-generated)
-    const profile = Profile.create({
+    const profile = await Profile.create({
       account_name,
       li_account_id: li_account_id || null,
       company_id: company_id || null
@@ -867,12 +867,12 @@ router.post('/profiles', (req, res) => {
  * 
  * Delete a Profile
  */
-router.delete('/profiles/:id', (req, res) => {
+router.delete('/profiles/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
     // Check if account exists
-    const account = Profile.findById(id);
+    const account = await Profile.findById(id);
     if (!account) {
       return res.status(404).json({
         success: false,
@@ -881,7 +881,7 @@ router.delete('/profiles/:id', (req, res) => {
     }
 
     // Delete the account
-    const deleted = Profile.delete(id);
+    const deleted = await Profile.delete(id);
 
     res.json({
       success: true,
