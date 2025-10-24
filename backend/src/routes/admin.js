@@ -456,9 +456,9 @@ router.get('/linkedin-accounts', (req, res) => {
  * GET /api/admin/linkedin-accounts/unassigned
  * Legacy endpoint - redirects to profiles
  */
-router.get('/linkedin-accounts/unassigned', (req, res) => {
+router.get('/linkedin-accounts/unassigned', async (req, res) => {
   try {
-    const profiles = Profile.findUnassigned();
+    const profiles = await Profile.findUnassigned();
 
     res.json({
       success: true,
@@ -660,7 +660,7 @@ router.delete('/linkedin-accounts/:id', (req, res) => {
  * Get all Profiles with optional filters
  * Query params: ?status=assigned|unassigned&company_id=uuid
  */
-router.get('/profiles', (req, res) => {
+router.get('/profiles', async (req, res) => {
   try {
     const filters = {};
 
@@ -672,7 +672,7 @@ router.get('/profiles', (req, res) => {
       filters.company_id = req.query.company_id;
     }
 
-    const profiles = Profile.findAll(filters);
+    const profiles = await Profile.findAll(filters);
 
     res.json({
       success: true,
@@ -693,9 +693,9 @@ router.get('/profiles', (req, res) => {
  * 
  * Get all unassigned Profiles
  */
-router.get('/profiles/unassigned', (req, res) => {
+router.get('/profiles/unassigned', async (req, res) => {
   try {
-    const profiles = Profile.findUnassigned();
+    const profiles = await Profile.findUnassigned();
 
     res.json({
       success: true,
@@ -903,11 +903,11 @@ router.delete('/profiles/:id', (req, res) => {
  * 
  * Get system-wide statistics
  */
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
-    const companies = Company.findAll();
-    const allAccounts = Profile.findAll();
-    const unassignedAccounts = Profile.findUnassigned();
+    const companies = await Company.findAll();
+    const allAccounts = await Profile.findAll();
+    const unassignedAccounts = await Profile.findUnassigned();
 
     res.json({
       success: true,
