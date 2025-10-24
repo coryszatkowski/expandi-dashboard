@@ -4,20 +4,9 @@ import { getCampaignDashboard, deleteContact } from '../services/api';
 import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
 import DateRangeFilter from '../components/DateRangeFilter';
+import { formatDateTime, formatDate } from '../utils/timezone';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2 } from 'lucide-react';
 
-// Helper function to format date/time for display
-const formatDateTime = (dateString) => {
-  if (!dateString) return null;
-  const date = new Date(dateString);
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  const hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  return `${month}/${day} ${displayHours}:${minutes} ${ampm}`;
-};
 
 export default function CampaignView() {
   const { shareToken, campaignId } = useParams();
@@ -361,11 +350,7 @@ export default function CampaignView() {
             <div>
               <dt className="text-sm font-medium text-gray-500">Start Date</dt>
               <dd className="mt-1 text-sm text-gray-900">
-                {new Date(campaign.started_at).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                {formatDate(campaign.started_at)}
               </dd>
             </div>
             <div>

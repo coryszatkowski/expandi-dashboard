@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format, parseISO } from 'date-fns';
+import { formatChartDate } from '../utils/timezone';
 
 const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) {
   // Format dates for display (memoized to prevent unnecessary recalculations)
   const formattedData = useMemo(() => 
     data.map(item => ({
       ...item,
-      displayDate: format(parseISO(item.date), 'MMM d'),
+      displayDate: formatChartDate(item.date),
     })), [data]);
 
   return (
