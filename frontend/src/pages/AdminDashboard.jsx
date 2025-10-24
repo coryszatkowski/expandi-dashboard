@@ -85,17 +85,30 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
+      setLoading(true);
       const [companiesData, accountsData, statsData] = await Promise.all([
         getCompanies(),
         getLinkedInAccounts(),
         getAdminStats(),
       ]);
 
-      setCompanies(companiesData.companies || []);
-      setAccounts(accountsData.accounts || []);
-      setStats(statsData.stats || {});
+      // Ensure we have valid data before setting state
+      setCompanies(companiesData?.companies || []);
+      setAccounts(accountsData?.accounts || []);
+      setStats(statsData?.stats || {});
+      
+      console.log('Data loaded successfully:', {
+        companies: companiesData?.companies?.length || 0,
+        accounts: accountsData?.accounts?.length || 0,
+        stats: statsData?.stats ? 'loaded' : 'empty'
+      });
     } catch (error) {
       console.error('Error loading data:', error);
+      // Set empty arrays on error to prevent undefined state
+      setCompanies([]);
+      setAccounts([]);
+      setStats({});
+      alert('Failed to load data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -429,6 +442,12 @@ export default function AdminDashboard() {
               <p className="mt-1 text-sm text-gray-500">Manage companies and LinkedIn accounts</p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={loadData}
+                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+              >
+                Refresh Data
+              </button>
               <button
                 onClick={() => setShowSettingsModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
@@ -857,7 +876,7 @@ export default function AdminDashboard() {
               {/* Actions */}
               <div className="flex gap-2 justify-between pt-4 border-t border-gray-200">
                 <button
-                  onClick={handleDeleteCompany}
+                  onClick={() => handleDeleteCompany(editingCompany.id, editingCompany.name)}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -957,7 +976,7 @@ export default function AdminDashboard() {
                   </button>
                   <button
                     type="submit"
-                    disabled={!generatedWebhookUrl}
+                    disabled={!newLinkedInAccount.account_name.trim()}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
                     Create Account
