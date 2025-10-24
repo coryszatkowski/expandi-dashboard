@@ -98,7 +98,7 @@ export const getCampaignDashboard = async (shareToken, campaignId, filters = {})
 
 export const exportDashboard = (shareToken, filters = {}) => {
   const params = new URLSearchParams(filters);
-  return `${API_URL}/api/dashboard/${shareToken}/export?${params}`;
+  return `${API_URL.replace(/\/$/, '')}/api/dashboard/${shareToken}/export?${params}`;
 };
 
 export const deleteContact = async (shareToken, contactId) => {

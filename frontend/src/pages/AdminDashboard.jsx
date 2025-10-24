@@ -315,7 +315,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex justify-center">
-            <div className="bg-blue-600 p-3 rounded-full">
+            <div className="bg-primary p-3 rounded-full">
               <Lock className="w-8 h-8 text-white" />
             </div>
           </div>
@@ -357,7 +357,7 @@ export default function AdminDashboard() {
                     required
                     value={loginForm.username}
                     onChange={handleLoginChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-gray-900"
+                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm bg-white text-gray-900"
                     placeholder="Enter your email"
                   />
                 </div>
@@ -379,7 +379,7 @@ export default function AdminDashboard() {
                     required
                     value={loginForm.password}
                     onChange={handleLoginChange}
-                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white text-gray-900"
+                    className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm bg-white text-gray-900"
                     placeholder="Enter your password"
                   />
                 </div>
@@ -389,7 +389,7 @@ export default function AdminDashboard() {
                 <button
                   type="submit"
                   disabled={loginLoading}
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loginLoading ? (
                     <div className="flex items-center">
@@ -475,7 +475,7 @@ export default function AdminDashboard() {
                   <p className="text-sm text-gray-600">Companies</p>
                   <p className="text-2xl font-bold text-gray-900">{stats.total_companies}</p>
                 </div>
-                <Briefcase className="w-8 h-8 text-blue-600" />
+                <Briefcase className="w-8 h-8 text-primary" />
               </div>
             </div>
             <div className="bg-white rounded-lg shadow p-6">
@@ -535,7 +535,7 @@ export default function AdminDashboard() {
             </div>
             <button
               onClick={() => setShowNewCompanyModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-700"
             >
               <Plus className="w-4 h-4" />
               New Company
@@ -549,7 +549,7 @@ export default function AdminDashboard() {
                     <div>
                       <button
                         onClick={() => openCompanyDashboard(company.share_token)}
-                        className="text-lg font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-2 transition-colors"
+                        className="text-lg font-semibold text-primary hover:text-primary-800 hover:underline flex items-center gap-2 transition-colors"
                       >
                         {company.name}
                         <ExternalLink className="w-4 h-4" />
@@ -576,7 +576,7 @@ export default function AdminDashboard() {
                         <>
                           <button
                             onClick={() => openEditCompanyModal(company)}
-                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-2"
+                            className="px-4 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 flex items-center gap-2"
                           >
                             <Edit className="w-4 h-4" />
                             Edit Company
@@ -639,7 +639,7 @@ export default function AdminDashboard() {
                       {account.company_id ? (
                         <button
                           onClick={() => openAccountDashboard(account)}
-                          className="text-lg font-medium text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-2 transition-colors"
+                          className="text-lg font-medium text-primary hover:text-primary-800 hover:underline flex items-center gap-2 transition-colors"
                         >
                           {account.account_name}
                           <ExternalLink className="w-4 h-4" />
@@ -672,7 +672,7 @@ export default function AdminDashboard() {
                               setBackfillProfile({ id: account.id, account_name: account.account_name });
                               setShowBackfillModal(true);
                             }}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary-100 text-primary-700 hover:bg-primary-200 transition-colors"
                           >
                             <FileSpreadsheet className="w-4 h-4" />
                             Import Data
@@ -767,7 +767,7 @@ export default function AdminDashboard() {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-700"
                   >
                     Create
                   </button>
@@ -796,7 +796,7 @@ export default function AdminDashboard() {
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-700"
                   >
                     Update Name
                   </button>
@@ -809,7 +809,7 @@ export default function AdminDashboard() {
                   <h4 className="text-md font-medium text-gray-900">LinkedIn Accounts</h4>
                   <button
                     onClick={() => openAddLinkedInModal(editingCompany.id)}
-                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200 flex items-center gap-1"
+                    className="px-3 py-1 bg-primary-100 text-primary-700 rounded text-sm hover:bg-primary-200 flex items-center gap-1"
                   >
                     <Plus className="w-4 h-4" />
                     Add LinkedIn Account
@@ -956,7 +956,7 @@ export default function AdminDashboard() {
                       <button
                         type="button"
                         onClick={copyWebhookUrl}
-                        className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-1"
+                        className="px-3 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 flex items-center gap-1"
                       >
                         {copiedToClipboard ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                         {copiedToClipboard ? 'Copied!' : 'Copy'}
@@ -966,9 +966,9 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h5 className="text-sm font-medium text-blue-800 mb-2">Instructions:</h5>
-                  <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-primary-800 mb-2">Instructions:</h5>
+                  <ol className="text-sm text-primary-700 space-y-1 list-decimal list-inside">
                     <li>Enter the account name above</li>
                     <li>Click "Create Account" below to save it to your dashboard</li>
                     <li>Copy the generated webhook URL that appears after creation</li>
@@ -988,7 +988,7 @@ export default function AdminDashboard() {
                   <button
                     type="submit"
                     disabled={!newLinkedInAccount.account_name.trim()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
                     Create Account
                   </button>

@@ -59,7 +59,7 @@ export default function DateRangeFilter({ onFilter }) {
           onClick={() => handleFilter(days, label, type)}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             activeFilter === label
-              ? 'bg-blue-600 text-white'
+              ? 'bg-primary text-white'
               : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
           }`}
         >

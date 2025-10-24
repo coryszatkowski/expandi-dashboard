@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCampaignDashboard, deleteContact } from '../services/api';
 import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
-import DateRangeFilter from '../components/DateRangeFilter';
+import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
 import { formatDateTime, formatDate } from '../utils/timezone';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2 } from 'lucide-react';
@@ -89,7 +89,7 @@ export default function CampaignView() {
           <p className="text-gray-600">{error}</p>
           <button
             onClick={() => navigate(`/c/${shareToken}${isAdmin ? '?admin=true' : ''}`)}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-700"
           >
             Back to Dashboard
           </button>
@@ -109,7 +109,7 @@ export default function CampaignView() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => window.history.back()}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+            className="flex items-center gap-2 text-primary hover:text-primary-700"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -142,7 +142,7 @@ export default function CampaignView() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}
         <div className="mb-6">
-          <DateRangeFilter onFilter={setFilters} />
+          <DateRangePicker onFilter={setFilters} />
         </div>
 
         {/* KPI Cards */}
