@@ -333,7 +333,13 @@ class BackfillService {
     const groups = {};
     
     for (const contact of contacts) {
-      const campaignName = contact.campaign || 'Unknown Campaign';
+      // Use actual campaign data if available, otherwise create unique default
+      let campaignName = contact.campaign;
+      
+      if (!campaignName || campaignName.trim() === '') {
+        // Create unique campaign name with UUID to prevent duplicates
+        campaignName = `Unknown Campaign - ${uuidv4().substring(0, 8)}`;
+      }
       
       if (!groups[campaignName]) {
         groups[campaignName] = [];

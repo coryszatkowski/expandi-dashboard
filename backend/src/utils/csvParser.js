@@ -24,20 +24,20 @@ class CSVParser {
           // Map ORION CSV columns to our expected format
           const contactData = {
             id: parseInt(data.id),
-            first_name: data.first_name?.trim(),
-            last_name: data.last_name?.trim(),
-            profile_link: data.profile_link?.trim(),
-            job_title: data.job_title?.trim(),
-            company_name: data.company_name?.trim(),
-            email: data.email?.trim(),
-            work_email: data.work_email?.trim(),
-            phone: data.phone?.trim(),
-            contact_status: data.contact_status?.trim(),
-            conversation_status: data.conversation_status?.trim(),
-            invited_at: data.invited_at?.trim(),
-            connected_at: data.connected_at?.trim(),
-            external_id: data.external_id?.trim(),
-            campaign: data.campaign?.trim()
+            first_name: this.findFirstNonEmpty(data, ['first_name', 'First Name', 'FIRST_NAME']),
+            last_name: this.findFirstNonEmpty(data, ['last_name', 'Last Name', 'LAST_NAME']),
+            profile_link: this.findFirstNonEmpty(data, ['profile_link', 'Profile Link', 'PROFILE_LINK']),
+            job_title: this.findFirstNonEmpty(data, ['job_title', 'Job Title', 'JOB_TITLE']),
+            company_name: this.findFirstNonEmpty(data, ['company_name', 'Company Name', 'COMPANY_NAME']),
+            email: this.findFirstNonEmpty(data, ['email', 'Email', 'EMAIL']),
+            work_email: this.findFirstNonEmpty(data, ['work_email', 'Work Email', 'WORK_EMAIL']),
+            phone: this.findFirstNonEmpty(data, ['phone', 'Phone', 'PHONE']),
+            contact_status: this.findFirstNonEmpty(data, ['contact_status', 'Contact Status', 'CONTACT_STATUS']),
+            conversation_status: this.findFirstNonEmpty(data, ['conversation_status', 'Conversation Status', 'CONVERSATION_STATUS']),
+            invited_at: this.findFirstNonEmpty(data, ['invited_at', 'Invited At', 'INVITED_AT']),
+            connected_at: this.findFirstNonEmpty(data, ['connected_at', 'Connected At', 'CONNECTED_AT']),
+            external_id: this.findFirstNonEmpty(data, ['external_id', 'External ID', 'EXTERNAL_ID']),
+            campaign: this.findFirstNonEmpty(data, ['campaign', 'Campaign', 'CAMPAIGN'])
           };
           
           // Only add if we have a valid ID
@@ -116,6 +116,22 @@ class CSVParser {
     } catch (error) {
       throw new Error(`Failed to get file info: ${error.message}`);
     }
+  }
+
+  /**
+   * Find the first non-empty value from multiple possible column names
+   * @param {Object} data - CSV row data
+   * @param {Array} possibleColumns - Array of possible column names to check
+   * @returns {string|null} First non-empty value or null
+   */
+  static findFirstNonEmpty(data, possibleColumns) {
+    for (const column of possibleColumns) {
+      const value = data[column]?.trim();
+      if (value && value !== '') {
+        return value;
+      }
+    }
+    return null; // Return null instead of empty string
   }
 }
 
