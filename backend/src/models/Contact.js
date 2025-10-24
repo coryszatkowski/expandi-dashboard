@@ -5,7 +5,7 @@
  * NOTE: Contact details are NOT displayed to end users in MVP - only used for aggregation.
  */
 
-const { getDatabase } = require('../config/database');
+const db = require('../utils/databaseHelper');
 
 class Contact {
   /**
@@ -22,19 +22,16 @@ class Contact {
    * @param {string} [data.phone] - Phone number
    * @returns {Object} Created contact object
    */
-  static create(data) {
-    const db = getDatabase();
+  static async create(data) {
     const now = new Date().toISOString();
 
-    const stmt = db.prepare(`
+    await db.execute(`
       INSERT INTO contacts (
         contact_id, campaign_id, first_name, last_name, company_name, job_title,
         profile_link, email, phone, created_at, updated_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    `, [
       data.contact_id,
       data.campaign_id,
       data.first_name || null,
@@ -46,9 +43,9 @@ class Contact {
       data.phone || null,
       now,
       now
-    );
+    ]);
 
-    return this.findByContactIdAndCampaign(data.contact_id, data.campaign_id);
+    return await this.findByContactIdAndCampaign(data.contact_id, data.campaign_id);
   }
 
   /**
@@ -57,10 +54,8 @@ class Contact {
    * @param {string} campaignId - Campaign UUID
    * @returns {Object|null} Contact object or null if not found
    */
-  static findByContactIdAndCampaign(contactId, campaignId) {
-    const db = getDatabase();
-    const stmt = db.prepare('SELECT * FROM contacts WHERE contact_id = ? AND campaign_id = ?');
-    return stmt.get(contactId, campaignId);
+  static async findByContactIdAndCampaign(contactId, campaignId) {
+    return await db.selectOne('SELECT * FROM contacts WHERE contact_id = ? AND campaign_id = ?', [contactId, campaignId]);
   }
 
   /**
@@ -69,10 +64,8 @@ class Contact {
    * @returns {Object|null} Contact object or null if not found
    * @deprecated Use findByContactIdAndCampaign for campaign-scoped operations
    */
-  static findById(contactId) {
-    const db = getDatabase();
-    const stmt = db.prepare('SELECT * FROM contacts WHERE contact_id = ? LIMIT 1');
-    return stmt.get(contactId);
+  static async findById(contactId) {
+    return await db.selectOne('SELECT * FROM contacts WHERE contact_id = ? LIMIT 1', [contactId]);
   }
 
   /**
@@ -82,8 +75,7 @@ class Contact {
    * @param {Object} data - Data to update
    * @returns {Object} Updated contact object
    */
-  static update(contactId, campaignId, data) {
-    const db = getDatabase();
+  static async update(contactId, campaignId, data) {
     const now = new Date().toISOString();
 
     const updateFields = [];
@@ -102,22 +94,20 @@ class Contact {
     });
 
     if (updateFields.length === 0) {
-      return this.findByContactIdAndCampaign(contactId, campaignId);
+      return await this.findByContactIdAndCampaign(contactId, campaignId);
     }
 
     updateFields.push('updated_at = ?');
     values.push(now);
     values.push(contactId, campaignId);
 
-    const stmt = db.prepare(`
+    await db.execute(`
       UPDATE contacts 
       SET ${updateFields.join(', ')}
       WHERE contact_id = ? AND campaign_id = ?
-    `);
+    `, values);
 
-    stmt.run(...values);
-
-    return this.findByContactIdAndCampaign(contactId, campaignId);
+    return await this.findByContactIdAndCampaign(contactId, campaignId);
   }
 
   /**
@@ -125,19 +115,19 @@ class Contact {
    * @param {Object} data - Contact data (must include contact_id and campaign_id)
    * @returns {Object} Existing or newly created contact
    */
-  static findOrCreate(data) {
+  static async findOrCreate(data) {
     if (!data.campaign_id) {
       throw new Error('campaign_id is required for contact operations');
     }
     
-    const existing = this.findByContactIdAndCampaign(data.contact_id, data.campaign_id);
+    const existing = await this.findByContactIdAndCampaign(data.contact_id, data.campaign_id);
     
     if (existing) {
       // Update with any new information
-      return this.update(data.contact_id, data.campaign_id, data);
+      return await this.update(data.contact_id, data.campaign_id, data);
     }
     
-    return this.create(data);
+    return await this.create(data);
   }
 
   /**
@@ -146,10 +136,8 @@ class Contact {
    * @param {string} campaignId - Campaign UUID
    * @returns {boolean} True if deleted, false if not found
    */
-  static delete(contactId, campaignId) {
-    const db = getDatabase();
-    const stmt = db.prepare('DELETE FROM contacts WHERE contact_id = ? AND campaign_id = ?');
-    const result = stmt.run(contactId, campaignId);
+  static async delete(contactId, campaignId) {
+    const result = await db.execute('DELETE FROM contacts WHERE contact_id = ? AND campaign_id = ?', [contactId, campaignId]);
     return result.changes > 0;
   }
 }

@@ -5,7 +5,7 @@
  * Handles all business logic for performance metrics.
  */
 
-const { getDatabase } = require('../config/database');
+const db = require('../utils/databaseHelper');
 const { format, parseISO, startOfDay, endOfDay } = require('date-fns');
 
 class AnalyticsService {
@@ -17,16 +17,13 @@ class AnalyticsService {
    * @param {string} [options.end_date] - ISO 8601 date
    * @returns {Object} Dashboard data with KPIs and trends
    */
-  static getCompanyDashboard(companyId, options = {}) {
-    const db = getDatabase();
-
+  static async getCompanyDashboard(companyId, options = {}) {
     // Get all profiles for this company
-    const profilesStmt = db.prepare(`
+    const profiles = await db.selectAll(`
       SELECT * FROM profiles 
       WHERE company_id = ? AND status = 'assigned'
       ORDER BY account_name
-    `);
-    const profiles = profilesStmt.all(companyId);
+    `, [companyId]);
 
     if (profiles.length === 0) {
       return {
@@ -39,21 +36,22 @@ class AnalyticsService {
     const profileIds = profiles.map(p => p.id);
 
     // Get aggregate KPIs across all profiles
-    const kpis = this.getAggregateKPIs(profileIds, options);
+    const kpis = await this.getAggregateKPIs(profileIds, options);
 
     // Get activity timeline
-    const timeline = this.getActivityTimeline(profileIds, options);
+    const timeline = await this.getActivityTimeline(profileIds, options);
 
     // Get per-profile summaries
-    const profileSummaries = profiles.map(profile => {
-      const profileKPIs = this.getProfileKPIs(profile.id, options);
-      return {
+    const profileSummaries = [];
+    for (const profile of profiles) {
+      const profileKPIs = await this.getProfileKPIs(profile.id, options);
+      profileSummaries.push({
         id: profile.id,
         account_name: profile.account_name,
         account_email: profile.account_email,
         ...profileKPIs
-      };
-    });
+      });
+    }
 
     return {
       kpis,
@@ -68,47 +66,44 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Object} Profile dashboard data
    */
-  static getProfileDashboard(profileId, options = {}) {
-    const db = getDatabase();
-
+  static async getProfileDashboard(profileId, options = {}) {
     // Get profile information
-    const profileStmt = db.prepare(`
+    const profile = await db.selectOne(`
       SELECT p.*, c.name as company_name
       FROM profiles p
       LEFT JOIN companies c ON p.company_id = c.id
       WHERE p.id = ?
-    `);
-    const profile = profileStmt.get(profileId);
+    `, [profileId]);
 
     if (!profile) {
       throw new Error('Profile not found');
     }
 
     // Get profile KPIs
-    const kpis = this.getProfileKPIs(profileId, options);
+    const kpis = await this.getProfileKPIs(profileId, options);
 
     // Get activity timeline for this profile
-    const timeline = this.getActivityTimeline([profileId], options);
+    const timeline = await this.getActivityTimeline([profileId], options);
 
     // Get all campaigns for this profile
-    const campaignsStmt = db.prepare(`
+    const campaigns = await db.selectAll(`
       SELECT * FROM campaigns 
       WHERE profile_id = ?
       ORDER BY started_at DESC
-    `);
-    const campaigns = campaignsStmt.all(profileId);
+    `, [profileId]);
 
     // Get KPIs for each campaign
-    const campaignSummaries = campaigns.map(campaign => {
-      const campaignKPIs = this.getCampaignKPIs(campaign.id, options);
-      return {
+    const campaignSummaries = [];
+    for (const campaign of campaigns) {
+      const campaignKPIs = await this.getCampaignKPIs(campaign.id, options);
+      campaignSummaries.push({
         id: campaign.id,
         campaign_name: campaign.campaign_name,
         campaign_instance: campaign.campaign_instance,
         started_at: campaign.started_at,
         ...campaignKPIs
-      };
-    });
+      });
+    }
 
     return {
       account: {
@@ -129,10 +124,10 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Object} Campaign dashboard data
    */
-  static getCampaignDashboard(campaignId, options = {}) {
-    const kpis = this.getCampaignKPIs(campaignId, options);
-    const timeline = this.getCampaignTimeline(campaignId, options);
-    const contacts = this.getCampaignContacts(campaignId, options);
+  static async getCampaignDashboard(campaignId, options = {}) {
+    const kpis = await this.getCampaignKPIs(campaignId, options);
+    const timeline = await this.getCampaignTimeline(campaignId, options);
+    const contacts = await this.getCampaignContacts(campaignId, options);
 
     return {
       kpis,
@@ -147,9 +142,7 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Object} Aggregate KPIs
    */
-  static getAggregateKPIs(profileIds, options = {}) {
-    const db = getDatabase();
-
+  static async getAggregateKPIs(profileIds, options = {}) {
     if (profileIds.length === 0) {
       return this.emptyKPIs();
     }
@@ -158,17 +151,18 @@ class AnalyticsService {
     const { whereClause, params } = this.buildDateFilter(options);
 
     // Get campaign IDs for these profiles
-    const campaignIds = db.prepare(`
+    const campaigns = await db.selectAll(`
       SELECT id FROM campaigns 
       WHERE profile_id IN (${profileIds.map(() => '?').join(',')})
-    `).all(...profileIds).map(c => c.id);
+    `, profileIds);
+    const campaignIds = campaigns.map(c => c.id);
 
     if (campaignIds.length === 0) {
       return this.emptyKPIs();
     }
 
     // Get aggregate counts based on event types
-    const stmt = db.prepare(`
+    const counts = await db.selectOne(`
       SELECT 
         COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
         COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
@@ -176,9 +170,7 @@ class AnalyticsService {
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
       ${whereClause}
-    `);
-
-    const counts = stmt.get(...campaignIds, ...params);
+    `, [...campaignIds, ...params]);
 
     return this.calculateRates(counts);
   }
@@ -189,13 +181,12 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Object} Profile KPIs
    */
-  static getProfileKPIs(profileId, options = {}) {
-    const db = getDatabase();
-
+  static async getProfileKPIs(profileId, options = {}) {
     // Get campaign IDs for this profile
-    const campaignIds = db.prepare(`
+    const campaigns = await db.selectAll(`
       SELECT id FROM campaigns WHERE profile_id = ?
-    `).all(profileId).map(c => c.id);
+    `, [profileId]);
+    const campaignIds = campaigns.map(c => c.id);
 
     if (campaignIds.length === 0) {
       return { ...this.emptyKPIs(), campaigns_count: 0 };
@@ -203,7 +194,7 @@ class AnalyticsService {
 
     const { whereClause, params } = this.buildDateFilter(options);
 
-    const stmt = db.prepare(`
+    const counts = await db.selectOne(`
       SELECT 
         COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
         COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
@@ -211,9 +202,7 @@ class AnalyticsService {
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
       ${whereClause}
-    `);
-
-    const counts = stmt.get(...campaignIds, ...params);
+    `, [...campaignIds, ...params]);
 
     return {
       ...this.calculateRates(counts),
@@ -227,11 +216,10 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Object} Campaign KPIs
    */
-  static getCampaignKPIs(campaignId, options = {}) {
+  static async getCampaignKPIs(campaignId, options = {}) {
     const { whereClause, params } = this.buildDateFilter(options);
 
-    const db = getDatabase();
-    const stmt = db.prepare(`
+    const counts = await db.selectOne(`
       SELECT 
         COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
         COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
@@ -239,9 +227,7 @@ class AnalyticsService {
       FROM events
       WHERE campaign_id = ?
       ${whereClause}
-    `);
-
-    const counts = stmt.get(campaignId, ...params);
+    `, [campaignId, ...params]);
 
     return this.calculateRates(counts);
   }
@@ -252,18 +238,17 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Array} Timeline data points
    */
-  static getActivityTimeline(accountIds, options = {}) {
-    const db = getDatabase();
-
+  static async getActivityTimeline(accountIds, options = {}) {
     if (accountIds.length === 0) {
       return [];
     }
 
     // Get campaign IDs
-    const campaignIds = db.prepare(`
+    const campaigns = await db.selectAll(`
       SELECT id FROM campaigns 
       WHERE profile_id IN (${accountIds.map(() => '?').join(',')})
-    `).all(...accountIds).map(c => c.id);
+    `, accountIds);
+    const campaignIds = campaigns.map(c => c.id);
 
     if (campaignIds.length === 0) {
       return [];
@@ -273,7 +258,7 @@ class AnalyticsService {
     const { timelineWhereClause, timelineParams } = this.buildTimelineDateFilter(options);
 
     // Group by date
-    const stmt = db.prepare(`
+    return await db.selectAll(`
       SELECT 
         DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
         COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
@@ -285,9 +270,7 @@ class AnalyticsService {
       AND DATE(COALESCE(invited_at, connected_at, replied_at)) IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
-    `);
-
-    return stmt.all(...campaignIds, ...timelineParams);
+    `, [...campaignIds, ...timelineParams]);
   }
 
   /**
@@ -296,11 +279,10 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Array} Timeline data points
    */
-  static getCampaignTimeline(campaignId, options = {}) {
-    const db = getDatabase();
+  static async getCampaignTimeline(campaignId, options = {}) {
     const { whereClause, params } = this.buildDateFilter(options);
 
-    const stmt = db.prepare(`
+    return await db.selectAll(`
       SELECT 
         DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
         COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
@@ -312,9 +294,7 @@ class AnalyticsService {
       AND DATE(COALESCE(invited_at, connected_at, replied_at)) IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
-    `);
-
-    return stmt.all(campaignId, ...params);
+    `, [campaignId, ...params]);
   }
 
   /**
@@ -410,11 +390,9 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {Array} Array of contact objects with progress status
    */
-  static getCampaignContacts(campaignId, options = {}) {
-    const db = getDatabase();
-    
+  static async getCampaignContacts(campaignId, options = {}) {
     // Get all unique contacts for this campaign
-    const contactsStmt = db.prepare(`
+    const contacts = await db.selectAll(`
       SELECT DISTINCT 
         c.contact_id,
         c.first_name,
@@ -425,14 +403,13 @@ class AnalyticsService {
       FROM contacts c
       WHERE c.campaign_id = ?
       ORDER BY c.first_name, c.last_name
-    `);
-    
-    const contacts = contactsStmt.all(campaignId);
+    `, [campaignId]);
     
     // For each contact, get their progress status
-    return contacts.map(contact => {
+    const contactsWithStatus = [];
+    for (const contact of contacts) {
       // Get the latest event for this contact in this campaign
-      const latestEventStmt = db.prepare(`
+      const latestEvent = await db.selectOne(`
         SELECT 
           invited_at,
           connected_at,
@@ -442,43 +419,35 @@ class AnalyticsService {
         WHERE campaign_id = ? AND contact_id = ?
         ORDER BY created_at DESC
         LIMIT 1
-      `);
-      
-      const latestEvent = latestEventStmt.get(campaignId, contact.contact_id);
+      `, [campaignId, contact.contact_id]);
       
       // Get the invite timestamp from the invite_sent event specifically
-      const inviteEventStmt = db.prepare(`
+      const inviteEvent = await db.selectOne(`
         SELECT invited_at
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? AND event_type = 'invite_sent'
         ORDER BY created_at DESC
         LIMIT 1
-      `);
-      
-      const inviteEvent = inviteEventStmt.get(campaignId, contact.contact_id);
+      `, [campaignId, contact.contact_id]);
       
       // Get the connection timestamp from the connection_accepted event specifically
-      const connectionEventStmt = db.prepare(`
+      const connectionEvent = await db.selectOne(`
         SELECT connected_at
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? AND event_type = 'connection_accepted'
         ORDER BY created_at DESC
         LIMIT 1
-      `);
-      
-      const connectionEvent = connectionEventStmt.get(campaignId, contact.contact_id);
+      `, [campaignId, contact.contact_id]);
       
       // Get the reply status from any event (not just latest)
-      const replyEventStmt = db.prepare(`
+      const replyEvent = await db.selectOne(`
         SELECT replied_at, conversation_status
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? 
         AND (replied_at IS NOT NULL OR conversation_status = 'Replied')
         ORDER BY created_at DESC
         LIMIT 1
-      `);
-      
-      const replyEvent = replyEventStmt.get(campaignId, contact.contact_id);
+      `, [campaignId, contact.contact_id]);
       
       // Determine the appropriate status based on progress
       let status;
@@ -495,7 +464,7 @@ class AnalyticsService {
         status = 'Not Invited';
       }
 
-      return {
+      contactsWithStatus.push({
         contact_id: contact.contact_id,
         first_name: contact.first_name,
         last_name: contact.last_name,
@@ -509,8 +478,10 @@ class AnalyticsService {
         connected_at: connectionEvent?.connected_at,
         replied_at: replyEvent?.replied_at || null,
         conversation_status: status
-      };
-    });
+      });
+    }
+    
+    return contactsWithStatus;
   }
 
   /**
@@ -519,8 +490,8 @@ class AnalyticsService {
    * @param {Object} options - Filter options
    * @returns {string} CSV string
    */
-  static generateCSVExport(companyId, options = {}) {
-    const dashboard = this.getCompanyDashboard(companyId, options);
+  static async generateCSVExport(companyId, options = {}) {
+    const dashboard = await this.getCompanyDashboard(companyId, options);
 
     // CSV headers
     let csv = 'LinkedIn Account,Total Invites,Total Connections,Connection Rate %,Total Replies,Response Rate %\n';

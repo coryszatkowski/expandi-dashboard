@@ -6,7 +6,7 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { getDatabase } = require('../config/database');
+const db = require('../utils/databaseHelper');
 
 class Event {
   /**
@@ -22,20 +22,17 @@ class Event {
    * @param {string} [data.conversation_status] - Latest conversation status
    * @returns {Object} Created event object
    */
-  static create(data) {
-    const db = getDatabase();
+  static async create(data) {
     const id = uuidv4();
     const now = new Date().toISOString();
 
-    const stmt = db.prepare(`
+    await db.execute(`
       INSERT INTO events (
         id, campaign_id, contact_id, event_type, event_data, 
         invited_at, connected_at, replied_at, conversation_status, created_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    `, [
       id,
       data.campaign_id,
       data.contact_id,
@@ -46,9 +43,9 @@ class Event {
       data.replied_at || null,
       data.conversation_status || null,
       now
-    );
+    ]);
 
-    return this.findById(id);
+    return await this.findById(id);
   }
 
   /**
@@ -56,10 +53,8 @@ class Event {
    * @param {string} id - Event UUID
    * @returns {Object|null} Event object or null if not found
    */
-  static findById(id) {
-    const db = getDatabase();
-    const stmt = db.prepare('SELECT * FROM events WHERE id = ?');
-    const event = stmt.get(id);
+  static async findById(id) {
+    const event = await db.selectOne('SELECT * FROM events WHERE id = ?', [id]);
     
     if (event && event.event_data) {
       event.event_data = JSON.parse(event.event_data);
@@ -74,15 +69,13 @@ class Event {
    * @param {number} contactId - Contact ID
    * @returns {Object|null} Latest event or null if not found
    */
-  static findLatestForContact(campaignId, contactId) {
-    const db = getDatabase();
-    const stmt = db.prepare(`
+  static async findLatestForContact(campaignId, contactId) {
+    const event = await db.selectOne(`
       SELECT * FROM events 
       WHERE campaign_id = ? AND contact_id = ?
       ORDER BY created_at DESC
       LIMIT 1
-    `);
-    const event = stmt.get(campaignId, contactId);
+    `, [campaignId, contactId]);
     
     if (event && event.event_data) {
       event.event_data = JSON.parse(event.event_data);
@@ -99,9 +92,7 @@ class Event {
    * @param {number} [options.limit] - Limit number of results
    * @returns {Array} Array of event objects
    */
-  static findByCampaign(campaignId, options = {}) {
-    const db = getDatabase();
-    
+  static async findByCampaign(campaignId, options = {}) {
     let query = 'SELECT * FROM events WHERE campaign_id = ?';
     const params = [campaignId];
     
@@ -117,8 +108,7 @@ class Event {
       params.push(options.limit);
     }
     
-    const stmt = db.prepare(query);
-    const events = stmt.all(...params);
+    const events = await db.selectAll(query, params);
     
     // Parse JSON event_data
     return events.map(event => ({
@@ -134,17 +124,13 @@ class Event {
    * @param {string} eventType - Event type
    * @returns {Object|null} Event object or null if not found
    */
-  static findByContactCampaignAndType(campaignId, contactId, eventType) {
-    const db = getDatabase();
-    
-    const stmt = db.prepare(`
+  static async findByContactCampaignAndType(campaignId, contactId, eventType) {
+    const event = await db.selectOne(`
       SELECT * FROM events 
       WHERE campaign_id = ? AND contact_id = ? AND event_type = ?
       ORDER BY created_at DESC
       LIMIT 1
-    `);
-    
-    const event = stmt.get(campaignId, contactId, eventType);
+    `, [campaignId, contactId, eventType]);
     
     if (!event) {
       return null;
@@ -162,9 +148,7 @@ class Event {
    * @param {Object} data - Data to update
    * @returns {Object} Updated event object
    */
-  static update(id, data) {
-    const db = getDatabase();
-    
+  static async update(id, data) {
     const updateFields = [];
     const values = [];
 
@@ -194,20 +178,18 @@ class Event {
     }
 
     if (updateFields.length === 0) {
-      return this.findById(id);
+      return await this.findById(id);
     }
 
     values.push(id);
 
-    const stmt = db.prepare(`
+    await db.execute(`
       UPDATE events 
       SET ${updateFields.join(', ')}
       WHERE id = ?
-    `);
+    `, values);
 
-    stmt.run(...values);
-
-    return this.findById(id);
+    return await this.findById(id);
   }
 
 
@@ -216,10 +198,8 @@ class Event {
    * @param {string} id - Event UUID
    * @returns {boolean} True if deleted, false if not found
    */
-  static delete(id) {
-    const db = getDatabase();
-    const stmt = db.prepare('DELETE FROM events WHERE id = ?');
-    const result = stmt.run(id);
+  static async delete(id) {
+    const result = await db.execute('DELETE FROM events WHERE id = ?', [id]);
     return result.changes > 0;
   }
 
@@ -231,9 +211,7 @@ class Event {
    * @param {string} [options.end_date] - ISO 8601 date string
    * @returns {Object} Event counts by type
    */
-  static getCountsByCampaign(campaignId, options = {}) {
-    const db = getDatabase();
-    
+  static async getCountsByCampaign(campaignId, options = {}) {
     let whereClause = 'WHERE campaign_id = ?';
     const params = [campaignId];
     
@@ -247,16 +225,14 @@ class Event {
       params.push(options.end_date, options.end_date, options.end_date);
     }
 
-    const stmt = db.prepare(`
+    return await db.selectOne(`
       SELECT 
         COUNT(DISTINCT CASE WHEN invited_at IS NOT NULL THEN contact_id END) as invites_sent,
         COUNT(DISTINCT CASE WHEN connected_at IS NOT NULL THEN contact_id END) as connections,
         COUNT(DISTINCT CASE WHEN replied_at IS NOT NULL THEN contact_id END) as replies
       FROM events
       ${whereClause}
-    `);
-
-    return stmt.get(...params);
+    `, params);
   }
 }
 

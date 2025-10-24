@@ -7,7 +7,7 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { getDatabase } = require('../config/database');
+const db = require('../utils/databaseHelper');
 
 class Company {
   /**
@@ -16,25 +16,14 @@ class Company {
    * @returns {Object} Created company object
    */
   static async create(name) {
-    const db = getDatabase();
     const id = uuidv4();
     const shareToken = uuidv4();
     const now = new Date().toISOString();
 
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
-      // PostgreSQL
-      await db.query(`
-        INSERT INTO companies (id, name, share_token, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [id, name, shareToken, now, now]);
-    } else {
-      // SQLite
-      const stmt = db.prepare(`
-        INSERT INTO companies (id, name, share_token, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-      stmt.run(id, name, shareToken, now, now);
-    }
+    await db.execute(`
+      INSERT INTO companies (id, name, share_token, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `, [id, name, shareToken, now, now]);
 
     return await this.findById(id);
   }
@@ -45,17 +34,7 @@ class Company {
    * @returns {Object|null} Company object or null if not found
    */
   static async findById(id) {
-    const db = getDatabase();
-    
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
-      // PostgreSQL
-      const result = await db.query('SELECT * FROM companies WHERE id = $1', [id]);
-      return result.rows[0] || null;
-    } else {
-      // SQLite
-      const stmt = db.prepare('SELECT * FROM companies WHERE id = ?');
-      return stmt.get(id);
-    }
+    return await db.selectOne('SELECT * FROM companies WHERE id = ?', [id]);
   }
 
   /**
@@ -63,10 +42,8 @@ class Company {
    * @param {string} shareToken - Share token UUID
    * @returns {Object|null} Company object or null if not found
    */
-  static findByShareToken(shareToken) {
-    const db = getDatabase();
-    const stmt = db.prepare('SELECT * FROM companies WHERE share_token = ?');
-    return stmt.get(shareToken);
+  static async findByShareToken(shareToken) {
+    return await db.selectOne('SELECT * FROM companies WHERE share_token = ?', [shareToken]);
   }
 
   /**
@@ -74,47 +51,44 @@ class Company {
    * @param {string} name - Company name
    * @returns {Object|null} Company object or null if not found
    */
-  static findByName(name) {
-    const db = getDatabase();
-    const stmt = db.prepare('SELECT * FROM companies WHERE name = ?');
-    return stmt.get(name);
+  static async findByName(name) {
+    return await db.selectOne('SELECT * FROM companies WHERE name = ?', [name]);
   }
 
   /**
    * Get all companies with their statistics
    * @returns {Array} Array of company objects with stats
    */
-  static findAll() {
-    const db = getDatabase();
-    
+  static async findAll() {
     // Get all companies
-    const companies = db.prepare('SELECT * FROM companies ORDER BY name').all();
+    const companies = await db.selectAll('SELECT * FROM companies ORDER BY name');
 
     // Add statistics for each company
-    return companies.map(company => {
+    const companiesWithStats = [];
+    for (const company of companies) {
       // Count profiles
-      const profilesStmt = db.prepare(`
+      const profilesResult = await db.selectOne(`
         SELECT COUNT(*) as count 
         FROM profiles 
         WHERE company_id = ?
-      `);
-      const profilesResult = profilesStmt.get(company.id);
+      `, [company.id]);
 
       // Count campaigns
-      const campaignsStmt = db.prepare(`
+      const campaignsResult = await db.selectOne(`
         SELECT COUNT(*) as count 
         FROM campaigns c
         JOIN profiles p ON c.profile_id = p.id
         WHERE p.company_id = ?
-      `);
-      const campaignsResult = campaignsStmt.get(company.id);
+      `, [company.id]);
 
-      return {
+      companiesWithStats.push({
         ...company,
         profiles_count: profilesResult.count,
         campaigns_count: campaignsResult.count
-      };
-    });
+      });
+    }
+
+    return companiesWithStats;
   }
 
   /**
@@ -123,8 +97,7 @@ class Company {
    * @param {Object} data - Data to update
    * @returns {Object} Updated company object
    */
-  static update(id, data) {
-    const db = getDatabase();
+  static async update(id, data) {
     const now = new Date().toISOString();
 
     const updateFields = [];
@@ -139,15 +112,13 @@ class Company {
     values.push(now);
     values.push(id);
 
-    const stmt = db.prepare(`
+    await db.execute(`
       UPDATE companies 
       SET ${updateFields.join(', ')}
       WHERE id = ?
-    `);
+    `, values);
 
-    stmt.run(...values);
-
-    return this.findById(id);
+    return await this.findById(id);
   }
 
   /**
@@ -155,13 +126,10 @@ class Company {
    * @param {string} id - Company UUID
    * @returns {boolean} True if deleted, false if not found
    */
-  static delete(id) {
-    const db = getDatabase();
-    
+  static async delete(id) {
     // NOTE: Deleting a company will set company_id to NULL for all associated LinkedIn accounts
     // (due to ON DELETE SET NULL in the schema)
-    const stmt = db.prepare('DELETE FROM companies WHERE id = ?');
-    const result = stmt.run(id);
+    const result = await db.execute('DELETE FROM companies WHERE id = ?', [id]);
 
     return result.changes > 0;
   }
@@ -171,20 +139,17 @@ class Company {
    * @param {string} id - Company UUID
    * @returns {Object} Updated company with new share token
    */
-  static regenerateShareToken(id) {
-    const db = getDatabase();
+  static async regenerateShareToken(id) {
     const shareToken = uuidv4();
     const now = new Date().toISOString();
 
-    const stmt = db.prepare(`
+    await db.execute(`
       UPDATE companies 
       SET share_token = ?, updated_at = ?
       WHERE id = ?
-    `);
+    `, [shareToken, now, id]);
 
-    stmt.run(shareToken, now, id);
-
-    return this.findById(id);
+    return await this.findById(id);
   }
 }
 

@@ -10,6 +10,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const db = require('../utils/databaseHelper');
 const Company = require('../models/Company');
 const Profile = require('../models/Profile');
 const AnalyticsService = require('../services/analyticsService');
@@ -199,30 +200,25 @@ router.get('/backfill/stats/:profileId', (req, res) => {
  */
 router.get('/companies', async (req, res) => {
   try {
-    const db = getDatabase();
-    let companies;
-    
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
-      // PostgreSQL
-      const result = await db.query('SELECT * FROM companies ORDER BY created_at DESC');
-      companies = result.rows;
-    } else {
-      // SQLite
-      const stmt = db.prepare('SELECT * FROM companies ORDER BY created_at DESC');
-      companies = stmt.all();
-    }
+    const companies = await db.selectAll('SELECT * FROM companies ORDER BY created_at DESC');
 
-    // Add empty KPIs for each company (AnalyticsService needs PostgreSQL update)
-    const companiesWithKPIs = companies.map(company => {
-      return {
+    // Get KPIs for each company using AnalyticsService
+    const companiesWithKPIs = [];
+    for (const company of companies) {
+      const kpis = await AnalyticsService.getAggregateKPIs(
+        await db.selectAll('SELECT id FROM profiles WHERE company_id = ? AND status = ?', [company.id, 'assigned'])
+          .then(profiles => profiles.map(p => p.id))
+      );
+      
+      companiesWithKPIs.push({
         ...company,
-        invites_sent: 0,
-        connections: 0,
-        replies: 0,
-        connection_rate: 0,
-        reply_rate: 0
-      };
-    });
+        invites_sent: kpis.total_invites,
+        connections: kpis.total_connections,
+        replies: kpis.total_replies,
+        connection_rate: kpis.connection_rate,
+        reply_rate: kpis.response_rate
+      });
+    }
 
     res.json({
       success: true,
@@ -285,22 +281,10 @@ router.post('/companies', async (req, res) => {
       });
     }
 
-    const db = getDatabase();
-    const id = require('uuid').v4();
-    const shareToken = require('uuid').v4();
-    const now = new Date().toISOString();
+    // Use Company model for consistency
 
     // Check if company with this name already exists
-    let existing;
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
-      // PostgreSQL
-      const result = await db.query('SELECT id FROM companies WHERE name = $1', [name]);
-      existing = result.rows[0];
-    } else {
-      // SQLite
-      const stmt = db.prepare('SELECT id FROM companies WHERE name = ?');
-      existing = stmt.get(name);
-    }
+    const existing = await db.selectOne('SELECT id FROM companies WHERE name = ?', [name]);
 
     if (existing) {
       return res.status(400).json({
@@ -309,29 +293,8 @@ router.post('/companies', async (req, res) => {
       });
     }
 
-    // Create company
-    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
-      // PostgreSQL
-      await db.query(`
-        INSERT INTO companies (id, name, share_token, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [id, name, shareToken, now, now]);
-    } else {
-      // SQLite
-      const stmt = db.prepare(`
-        INSERT INTO companies (id, name, share_token, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-      stmt.run(id, name, shareToken, now, now);
-    }
-
-    const company = {
-      id,
-      name,
-      share_token: shareToken,
-      created_at: now,
-      updated_at: now
-    };
+    // Create company using Company model
+    const company = await Company.create(name);
 
     res.status(201).json({
       success: true,

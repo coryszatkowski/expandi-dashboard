@@ -6,7 +6,7 @@
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { getDatabase } = require('../config/database');
+const db = require('../utils/databaseHelper');
 
 class Campaign {
   /**
@@ -18,19 +18,16 @@ class Campaign {
    * @param {string} data.started_at - ISO 8601 timestamp
    * @returns {Object} Created campaign object
    */
-  static create(data) {
-    const db = getDatabase();
+  static async create(data) {
     const id = uuidv4();
     const now = new Date().toISOString();
 
-    const stmt = db.prepare(`
+    await db.execute(`
       INSERT INTO campaigns (
         id, profile_id, campaign_instance, campaign_name, started_at, created_at, updated_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
+    `, [
       id,
       data.profile_id,
       data.campaign_instance,
@@ -38,9 +35,9 @@ class Campaign {
       data.started_at,
       now,
       now
-    );
+    ]);
 
-    return this.findById(id);
+    return await this.findById(id);
   }
 
   /**
@@ -48,15 +45,13 @@ class Campaign {
    * @param {string} id - Campaign UUID
    * @returns {Object|null} Campaign object or null if not found
    */
-  static findById(id) {
-    const db = getDatabase();
-    const stmt = db.prepare(`
+  static async findById(id) {
+    return await db.selectOne(`
       SELECT c.*, p.account_name, p.company_id
       FROM campaigns c
       JOIN profiles p ON c.profile_id = p.id
       WHERE c.id = ?
-    `);
-    return stmt.get(id);
+    `, [id]);
   }
 
   /**
@@ -64,15 +59,13 @@ class Campaign {
    * @param {string} campaignInstance - Campaign instance string
    * @returns {Object|null} Campaign object or null if not found
    */
-  static findByCampaignInstance(campaignInstance) {
-    const db = getDatabase();
-    const stmt = db.prepare(`
+  static async findByCampaignInstance(campaignInstance) {
+    return await db.selectOne(`
       SELECT c.*, p.account_name, p.company_id
       FROM campaigns c
       JOIN profiles p ON c.profile_id = p.id
       WHERE c.campaign_instance = ?
-    `);
-    return stmt.get(campaignInstance);
+    `, [campaignInstance]);
   }
 
   /**
@@ -81,15 +74,13 @@ class Campaign {
    * @param {string} campaignName - Campaign name (e.g., "A008+M003")
    * @returns {Object|null} Campaign object or null if not found
    */
-  static findByProfileAndName(profileId, campaignName) {
-    const db = getDatabase();
-    const stmt = db.prepare(`
+  static async findByProfileAndName(profileId, campaignName) {
+    return await db.selectOne(`
       SELECT c.*, p.account_name, p.company_id
       FROM campaigns c
       JOIN profiles p ON c.profile_id = p.id
       WHERE c.profile_id = ? AND c.campaign_name = ?
-    `);
-    return stmt.get(profileId, campaignName);
+    `, [profileId, campaignName]);
   }
 
   /**
@@ -97,14 +88,12 @@ class Campaign {
    * @param {string} profileId - Profile UUID
    * @returns {Array} Array of campaign objects
    */
-  static findByProfile(profileId) {
-    const db = getDatabase();
-    const stmt = db.prepare(`
+  static async findByProfile(profileId) {
+    return await db.selectAll(`
       SELECT * FROM campaigns
       WHERE profile_id = ?
       ORDER BY started_at DESC
-    `);
-    return stmt.all(profileId);
+    `, [profileId]);
   }
 
   /**
@@ -112,16 +101,14 @@ class Campaign {
    * @param {string} companyId - Company UUID
    * @returns {Array} Array of campaign objects
    */
-  static findByCompany(companyId) {
-    const db = getDatabase();
-    const stmt = db.prepare(`
+  static async findByCompany(companyId) {
+    return await db.selectAll(`
       SELECT c.*, p.account_name
       FROM campaigns c
       JOIN profiles p ON c.profile_id = p.id
       WHERE p.company_id = ?
       ORDER BY c.started_at DESC
-    `);
-    return stmt.all(companyId);
+    `, [companyId]);
   }
 
   /**
@@ -130,8 +117,7 @@ class Campaign {
    * @param {Object} data - Data to update
    * @returns {Object} Updated campaign object
    */
-  static update(id, data) {
-    const db = getDatabase();
+  static async update(id, data) {
     const now = new Date().toISOString();
 
     const updateFields = [];
@@ -156,15 +142,13 @@ class Campaign {
     values.push(now);
     values.push(id);
 
-    const stmt = db.prepare(`
+    await db.execute(`
       UPDATE campaigns 
       SET ${updateFields.join(', ')}
       WHERE id = ?
-    `);
+    `, values);
 
-    stmt.run(...values);
-
-    return this.findById(id);
+    return await this.findById(id);
   }
 
   /**
@@ -172,13 +156,10 @@ class Campaign {
    * @param {string} id - Campaign UUID
    * @returns {boolean} True if deleted, false if not found
    */
-  static delete(id) {
-    const db = getDatabase();
-    
+  static async delete(id) {
     // NOTE: Deleting a campaign will also delete all associated events
     // (due to ON DELETE CASCADE in the schema)
-    const stmt = db.prepare('DELETE FROM campaigns WHERE id = ?');
-    const result = stmt.run(id);
+    const result = await db.execute('DELETE FROM campaigns WHERE id = ?', [id]);
 
     return result.changes > 0;
   }
@@ -189,24 +170,24 @@ class Campaign {
    * @param {Object} data - Campaign data
    * @returns {Object} Existing or newly created campaign
    */
-  static findOrCreate(data) {
+  static async findOrCreate(data) {
     // First try to find by campaign_instance (for exact matches)
-    const existingByInstance = this.findByCampaignInstance(data.campaign_instance);
+    const existingByInstance = await this.findByCampaignInstance(data.campaign_instance);
     if (existingByInstance) {
       return existingByInstance;
     }
     
     // Then try to find by profile_id + campaign_name (for logical deduplication)
-    const existingByName = this.findByProfileAndName(data.profile_id, data.campaign_name);
+    const existingByName = await this.findByProfileAndName(data.profile_id, data.campaign_name);
     if (existingByName) {
       // Update the existing campaign with the new campaign_instance and started_at
-      return this.update(existingByName.id, {
+      return await this.update(existingByName.id, {
         campaign_instance: data.campaign_instance,
         started_at: data.started_at
       });
     }
     
-    return this.create(data);
+    return await this.create(data);
   }
 
   /**
