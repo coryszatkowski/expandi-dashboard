@@ -2,6 +2,27 @@
 
 A performance analytics dashboard for LinkedIn outreach campaigns powered by Expandi.io.
 
+## ⚠️ CRITICAL: Current Deployment Status
+
+**IMPORTANT FOR NEW DEVELOPERS:**
+- ✅ **Migration completed:** Local SQLite → Railway PostgreSQL
+- 🚧 **Currently troubleshooting:** Post-deployment issues on Railway
+- 🔧 **Active work:** Production environment fixes and webhook testing
+- 📍 **Current focus:** Railway database connection stability
+
+**PRODUCTION URLs:**
+- Backend: `https://api.dashboard.orionstrategy.com`
+- Frontend: `https://dashboard.orionstrategy.com`
+- Database: PostgreSQL (Railway)
+
+**DEVELOPMENT CLARIFICATION:**
+- ✅ Local development is fine to work on
+- ⚠️ When discussing "server issues" - we mean PRODUCTION server issues
+- ⚠️ Do NOT assume localhost issues when troubleshooting production problems
+- 🔧 We ARE making changes to production - that's the current focus
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -53,8 +74,43 @@ http://localhost:5173
 
 - **[PRD.md](./PRD.md)** - Complete product requirements and project overview
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Technical architecture and system design
+- **[CHANGELOG.md](./CHANGELOG.md)** - All changes and updates (MUST UPDATE ON EVERY CHANGE)
+- **[DEPLOYMENT_STATUS.md](./DEPLOYMENT_STATUS.md)** - Current deployment status and troubleshooting
 - **[backend/README.md](./backend/README.md)** - Backend setup and API docs
 - **[frontend/README.md](./frontend/README.md)** - Frontend setup and component docs
+
+### 📝 Documentation Maintenance
+**IMPORTANT:** All developers must update the CHANGELOG.md on every change made to the project. This ensures proper tracking of all modifications and helps with debugging and rollbacks.
+
+---
+
+## 🤖 AI Agent Guidelines
+
+**CRITICAL RULES FOR AI AGENTS:**
+
+### ✅ DO:
+- Always assume production systems are working unless explicitly told otherwise
+- When you get connection errors, investigate your own network/DNS first
+- Ask for clarification if you're unsure about system status
+- Use the correct production URLs: `api.dashboard.orionstrategy.com` and `dashboard.orionstrategy.com`
+
+### ❌ DO NOT:
+- Assume production systems are broken when you get connection errors
+- Fall back to Railway subdomains without checking if custom domains work
+- Make changes to fix "broken" systems that are actually working fine
+- Assume localhost issues when troubleshooting production problems
+
+### 🔍 Troubleshooting Protocol:
+1. **First:** Verify the user is actually experiencing an issue
+2. **Second:** Check if it's a network/DNS issue on your end
+3. **Third:** Ask the user to confirm system status
+4. **Only then:** Investigate potential production issues
+
+### 🚨 Common AI Agent Mistakes:
+- ❌ Assuming custom domains don't work when you get DNS errors
+- ❌ Falling back to Railway subdomains without checking
+- ❌ Making "fixes" for systems that are actually working
+- ❌ Confusing localhost issues with production issues
 
 ---
 ---
@@ -158,17 +214,34 @@ lt --port 3001 --subdomain breezy-things-talk
 ### Webhooks
 - `POST /api/webhooks/expandi` - Receive Expandi webhook data
 
+### Authentication
+- `POST /api/auth/login` - Admin login
+- `POST /api/auth/logout` - Admin logout
+- `POST /api/auth/change-password` - Change admin password
+- `POST /api/auth/add-admin` - Add new admin user
+- `GET /api/auth/admins` - List all admin users
+
 ### Admin
 - `GET /api/admin/companies` - List all companies
 - `POST /api/admin/companies` - Create new company
-- `GET /api/admin/linkedin-accounts` - List LinkedIn accounts
-- `PUT /api/admin/linkedin-accounts/:id/assign` - Assign account to company
+- `PUT /api/admin/companies/:id` - Update company
+- `DELETE /api/admin/companies/:id` - Delete company
+- `GET /api/admin/profiles` - List all profiles (LinkedIn accounts)
+- `POST /api/admin/profiles` - Create new profile
+- `PUT /api/admin/profiles/:id/assign` - Assign profile to company
+- `PUT /api/admin/profiles/:id/unassign` - Unassign profile
+- `DELETE /api/admin/profiles/:id` - Delete profile
+- `GET /api/admin/stats` - System-wide statistics
+- `GET /api/admin/webhooks/recent` - Recent webhook activity
+- `POST /api/admin/backfill` - CSV backfill historical data
 
 ### Dashboard (Public)
 - `GET /api/dashboard/:shareToken` - Get company dashboard data
 - `GET /api/dashboard/:shareToken/linkedin-account/:accountId` - Get account details
 - `GET /api/dashboard/:shareToken/campaign/:campaignId` - Get campaign details
 - `GET /api/dashboard/:shareToken/export` - Export as CSV
+- `DELETE /api/dashboard/:shareToken/campaign/:campaignId` - Delete campaign
+- `DELETE /api/dashboard/:shareToken/contact/:contactId` - Delete contact
 
 See [backend/README.md](./backend/README.md) for detailed API documentation.
 
@@ -176,15 +249,24 @@ See [backend/README.md](./backend/README.md) for detailed API documentation.
 
 ## 🗄️ Database
 
-### Local Development
-Uses SQLite (file-based database)
-- Location: `backend/database/dev.db`
-- No setup required - automatically created on first run
+### ⚠️ MIGRATION STATUS
+- ✅ **Completed:** SQLite → PostgreSQL migration
+- 🚧 **Current:** Production PostgreSQL on Railway
+- 📍 **Status:** Troubleshooting connection issues
 
-### Production
+### Production (Current)
 PostgreSQL (via Railway)
-- Automatic migration from SQLite schema
-- Environment variable: `DATABASE_URL=postgres://...`
+- **Database:** Railway PostgreSQL
+- **Connection:** `DATABASE_URL=postgres://...` (set in Railway)
+- **Status:** Active but experiencing connection issues
+- **Migration:** Completed from SQLite schema
+- **Backend:** `https://api.dashboard.orionstrategy.com`
+- **Frontend:** `https://dashboard.orionstrategy.com`
+
+### Local Development (Legacy)
+~~SQLite (file-based database)~~ - **NO LONGER USED**
+- ~~Location: `backend/database/dev.db`~~ - **Deprecated**
+- **Note:** Local development now connects to Railway PostgreSQL
 
 ---
 
@@ -198,12 +280,13 @@ PostgreSQL (via Railway)
 5. Set environment variables
 6. Deploy!
 
-### Frontend (Vercel)
-1. Create Vercel account
-2. Import GitHub repository
-3. Set build command: `cd frontend && npm run build`
-4. Set environment variables
-5. Deploy!
+### Frontend (Railway)
+1. Create Railway account
+2. Connect GitHub repository
+3. Create new project from repo
+4. Set build command: `cd frontend && npm run build`
+5. Set environment variables
+6. Deploy!
 
 See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for detailed deployment guide.
 
@@ -282,27 +365,32 @@ git push origin feature/new-feature-name
 
 ## 🎯 Project Status
 
-### ✅ Completed (MVP)
+### ✅ Completed (MVP + Extensions)
 - Webhook receiver
-- Database schema
-- Admin dashboard
-- Client dashboard
-- KPI calculations
-- Activity charts
+- Database schema (SQLite → PostgreSQL migration completed)
+- Admin dashboard with authentication
+- Client dashboard (public, no login)
+- KPI calculations and analytics
+- Activity charts with date filtering
 - Shareable links
-- CSV export
+- CSV export functionality
+- **Authentication system** (admin login, password management)
+- **CSV backfill system** (historical data import)
+- **Railway deployment** (backend + PostgreSQL)
+- **Vercel deployment** (frontend)
 
-### 🚧 In Progress
-- Final testing
-- Bug fixes
-- Documentation
+### 🚧 Currently In Progress
+- **Post-deployment troubleshooting** (Railway + PostgreSQL issues)
+- **Production environment fixes**
+- **Webhook endpoint testing** in production
+- **Database connection stability**
 
 ### 📋 Planned (Phase 2)
-- User authentication
-- Employee accounts
-- Advanced analytics
+- Employee accounts with role-based access
+- Advanced analytics (industry breakdown, job title analysis)
 - CRM integrations
 - Email notifications
+- Contact detail pages
 
 ---
 

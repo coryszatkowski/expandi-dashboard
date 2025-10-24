@@ -58,32 +58,51 @@ Company (e.g., "ORION Internal", "RWX", "Travis Consulting")
 
 ## Core Features
 
-### MVP Features (Phase 1)
+### MVP Features (Phase 1) - ✅ COMPLETED
 
-#### 1. Webhook Receiver
+#### 1. Webhook Receiver ✅
 - Receives webhooks from Expandi.io for three events:
   - `Connection Request Sent` → captures invite data
   - `Connection Request Accepted` → captures connection data
   - `Contact Replied` → captures reply data
-- Auto-creates LinkedIn Accounts and Campaigns from webhook data
-- New LinkedIn Accounts default to "Unassigned" status
+- Auto-creates Profiles and Campaigns from webhook data
+- New Profiles default to "Unassigned" status
+- **ENHANCED:** Real-time webhook monitoring and logging
 
-#### 2. Admin Dashboard (No Login for MVP)
+#### 2. Admin Dashboard ✅ (WITH AUTHENTICATION)
+- **Authentication System** (Added beyond MVP)
+  - Admin login/logout functionality
+  - Password management
+  - Multiple admin user support
+  - Settings modal for admin management
+
 - **Company Management**
   - List all companies
   - Create/edit/delete companies
   - Generate shareable dashboard URLs
   - Copy shareable link to clipboard
   
-- **LinkedIn Account Assignment**
-  - View all LinkedIn accounts
-  - Assign unassigned accounts to companies
-  - Reassign accounts if needed
-  - View account statistics
+- **Profile Management** (LinkedIn Accounts)
+  - View all profiles
+  - Assign unassigned profiles to companies
+  - Reassign profiles if needed
+  - Create new profiles manually
+  - Delete profiles
+  - View profile statistics
 
 - **System Overview**
   - Total invites, connections, replies across all campaigns
-  - List of unassigned LinkedIn accounts (alerts)
+  - List of unassigned profiles (alerts)
+  - **ENHANCED:** Real-time webhook activity monitoring
+  - **ENHANCED:** System-wide statistics dashboard
+
+#### 3. CSV Backfill System ✅ (Added beyond MVP)
+- **Historical Data Import**
+  - CSV upload with drag & drop interface
+  - Duplicate handling (skip existing or update)
+  - Bulk data processing
+  - Profile-specific backfill
+  - Progress tracking and error handling
 
 #### 3. Client Dashboard (Public, No Login)
 - Accessible via unique URL: `https://app.com/c/{companyId}`
@@ -122,33 +141,53 @@ Company (e.g., "ORION Internal", "RWX", "Travis Consulting")
 
 ### Phase 2 Features (Future)
 
-#### Authentication System
-- Admin login for ORION
-- Employee accounts with role-based access
-- Permission levels (view-only, edit, admin)
+#### ✅ Authentication System - COMPLETED (Added to MVP)
+- ✅ Admin login for ORION
+- 🔲 Employee accounts with role-based access
+- 🔲 Permission levels (view-only, edit, admin)
 
 #### Advanced Analytics
-- Industry breakdown (from contact company data)
-- Job title analysis
-- Company size segmentation
-- Geographic distribution
+- 🔲 Industry breakdown (from contact company data)
+- 🔲 Job title analysis
+- 🔲 Company size segmentation
+- 🔲 Geographic distribution
 
 #### Contact Tables
-- Detailed contact lists (filterable, searchable)
-- Individual contact profiles
-- Export contact lists
+- 🔲 Detailed contact lists (filterable, searchable)
+- 🔲 Individual contact profiles
+- 🔲 Export contact lists
 
 #### Expiring Shareable Links
-- Time-limited access URLs
-- Password-protected dashboards
+- 🔲 Time-limited access URLs
+- 🔲 Password-protected dashboards
 
 #### CRM Integration
-- Replace Make.com flows entirely
-- Push contacts directly to client CRMs from the app
+- 🔲 Replace Make.com flows entirely
+- 🔲 Push contacts directly to client CRMs from the app
 
 #### Notifications
-- Weekly performance emails to clients
-- Alerts for low performance campaigns
+- 🔲 Weekly performance emails to clients
+- 🔲 Alerts for low performance campaigns
+
+---
+
+## 🚨 CURRENT DEPLOYMENT STATUS
+
+### ✅ COMPLETED MIGRATIONS
+- **Database:** SQLite → PostgreSQL (Railway)
+- **Backend:** Local → Railway deployment
+- **Frontend:** Local → Vercel deployment
+- **Authentication:** Added to MVP
+
+### 🚧 CURRENT ISSUES
+- **Railway PostgreSQL:** Connection stability issues
+- **Webhook Testing:** Production endpoint testing
+- **Environment:** Post-deployment troubleshooting
+
+### ⚠️ FOR NEW DEVELOPERS
+- **DO NOT:** Work on local development while production issues are being resolved
+- **Current Focus:** Production environment fixes
+- **Active Work:** Railway database connection troubleshooting
 
 ---
 
@@ -234,7 +273,7 @@ Company (e.g., "ORION Internal", "RWX", "Travis Consulting")
 
 ## Data Models
 
-### Company
+### Company ✅ IMPLEMENTED
 ```javascript
 {
   id: uuid,
@@ -245,7 +284,7 @@ Company (e.g., "ORION Internal", "RWX", "Travis Consulting")
 }
 ```
 
-### LinkedIn Account
+### Profile (LinkedIn Account) ✅ IMPLEMENTED
 ```javascript
 {
   id: uuid,
@@ -253,9 +292,20 @@ Company (e.g., "ORION Internal", "RWX", "Travis Consulting")
   account_name: string,
   account_email: string,
   li_account_id: integer (from Expandi),
+  webhook_id: uuid (unique webhook identifier), // ADDED
   status: enum('assigned', 'unassigned'),
   created_at: timestamp,
   updated_at: timestamp
+}
+```
+
+### Admin User ✅ IMPLEMENTED (Added beyond MVP)
+```javascript
+{
+  id: uuid,
+  username: string,
+  password_hash: string,
+  created_at: timestamp
 }
 ```
 
@@ -309,23 +359,37 @@ Company (e.g., "ORION Internal", "RWX", "Travis Consulting")
 
 ## API Endpoints
 
-### Webhooks
+### Webhooks ✅ IMPLEMENTED
 - `POST /api/webhooks/expandi` - Receive Expandi webhooks
 
-### Admin
+### Authentication ✅ IMPLEMENTED (Added beyond MVP)
+- `POST /api/auth/login` - Admin login
+- `POST /api/auth/logout` - Admin logout
+- `POST /api/auth/change-password` - Change admin password
+- `POST /api/auth/add-admin` - Add new admin user
+- `GET /api/auth/admins` - List all admin users
+
+### Admin ✅ IMPLEMENTED
 - `GET /api/admin/companies` - List all companies
 - `POST /api/admin/companies` - Create company
 - `PUT /api/admin/companies/:id` - Update company
 - `DELETE /api/admin/companies/:id` - Delete company
-- `GET /api/admin/linkedin-accounts` - List all LinkedIn accounts
-- `PUT /api/admin/linkedin-accounts/:id/assign` - Assign account to company
+- `GET /api/admin/profiles` - List all profiles (LinkedIn accounts)
+- `POST /api/admin/profiles` - Create new profile
+- `PUT /api/admin/profiles/:id/assign` - Assign profile to company
+- `PUT /api/admin/profiles/:id/unassign` - Unassign profile
+- `DELETE /api/admin/profiles/:id` - Delete profile
 - `GET /api/admin/stats` - System-wide statistics
+- `GET /api/admin/webhooks/recent` - Recent webhook activity
+- `POST /api/admin/backfill` - CSV backfill historical data
 
-### Client Dashboard
+### Client Dashboard ✅ IMPLEMENTED
 - `GET /api/dashboard/:shareToken` - Get company dashboard data
 - `GET /api/dashboard/:shareToken/linkedin-account/:accountId` - Get account details
 - `GET /api/dashboard/:shareToken/campaign/:campaignId` - Get campaign details
 - `GET /api/dashboard/:shareToken/export` - Export CSV
+- `DELETE /api/dashboard/:shareToken/campaign/:campaignId` - Delete campaign
+- `DELETE /api/dashboard/:shareToken/contact/:contactId` - Delete contact
 
 ---
 

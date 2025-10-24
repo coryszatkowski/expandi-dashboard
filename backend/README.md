@@ -2,6 +2,40 @@
 
 Node.js/Express API server for the Expandi Dashboard.
 
+## ⚠️ CURRENT DEPLOYMENT STATUS
+
+**CRITICAL FOR NEW DEVELOPERS:**
+- ✅ **Migration completed:** SQLite → PostgreSQL (Railway)
+- 🚧 **Currently troubleshooting:** Post-deployment issues on Railway
+- 🔧 **Active work:** Production environment fixes and webhook testing
+- 📍 **Current focus:** Railway database connection stability
+
+**DEVELOPMENT CLARIFICATION:**
+- ✅ Local development is fine to work on
+- ⚠️ When discussing "server issues" - we mean PRODUCTION server issues
+- ⚠️ Do NOT assume localhost issues when troubleshooting production problems
+- 🔧 We ARE making changes to production - that's the current focus
+
+**Current Production URLs:**
+- Backend: `https://api.dashboard.orionstrategy.com`
+- Frontend: `https://dashboard.orionstrategy.com`
+- Database: PostgreSQL (Railway)
+
+## 🤖 AI Agent Notes
+
+**IMPORTANT:** This API is running in production and working correctly.
+
+**Before assuming issues:**
+- Check your own network connectivity
+- Verify you're using the correct URL: `https://api.dashboard.orionstrategy.com`
+- Ask the user to confirm if they're experiencing actual issues
+- Don't make changes to "fix" working systems
+
+**Common AI Agent Mistakes:**
+- Assuming custom domains don't work when you get DNS errors
+- Falling back to Railway subdomains unnecessarily
+- Making "fixes" for systems that are actually working fine
+
 ## 📋 Prerequisites
 
 - Node.js 18+ installed
@@ -9,30 +43,29 @@ Node.js/Express API server for the Expandi Dashboard.
 
 ## 🚀 Setup
 
+### ⚠️ CURRENT STATUS: PostgreSQL Migration Completed
+
+**Local Development (Legacy - No Longer Used):**
+~~SQLite setup is deprecated. Local development now connects to Railway PostgreSQL.~~
+
+### Production Setup (Current)
 1. **Install dependencies:**
 ```bash
 cd backend
 npm install
 ```
 
-2. **Create environment file:**
-```bash
-cp .env.example .env
+2. **Environment variables are set in Railway:**
+```
+PORT=3001
+NODE_ENV=production
+DATABASE_URL=postgres://... (Railway PostgreSQL)
+FRONTEND_URL=https://expandi-dashboard.vercel.app
 ```
 
-3. **Initialize database:**
-```bash
-npm run init-db
-```
+3. **Database is automatically managed by Railway PostgreSQL**
 
-This will create the SQLite database and run the schema.
-
-4. **Start development server:**
-```bash
-npm run dev
-```
-
-Server runs on `http://localhost:3001`
+4. **Server runs on Railway:** `https://backend-production-b2e1.up.railway.app`
 
 ## 📁 Project Structure
 
@@ -67,6 +100,43 @@ backend/
 ```
 
 ## 🔌 API Endpoints
+
+### Authentication (Added beyond MVP)
+
+#### POST `/api/auth/login`
+Admin login
+
+**Request body:**
+```json
+{
+  "username": "admin@example.com",
+  "password": "password"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "user": {
+    "id": "uuid",
+    "username": "admin@example.com"
+  }
+}
+```
+
+#### POST `/api/auth/logout`
+Admin logout
+
+#### POST `/api/auth/change-password`
+Change admin password
+
+#### POST `/api/auth/add-admin`
+Add new admin user
+
+#### GET `/api/auth/admins`
+List all admin users
 
 ### Webhooks
 
@@ -157,8 +227,8 @@ Create a new company
 }
 ```
 
-#### GET `/api/admin/linkedin-accounts`
-List all LinkedIn accounts
+#### GET `/api/admin/profiles`
+List all profiles (LinkedIn accounts)
 
 **Query parameters:**
 - `status` (optional): "assigned" or "unassigned"
@@ -168,7 +238,7 @@ List all LinkedIn accounts
 ```json
 {
   "success": true,
-  "accounts": [
+  "profiles": [
     {
       "id": "uuid",
       "account_name": "Tobias Millington",
@@ -182,28 +252,32 @@ List all LinkedIn accounts
 }
 ```
 
-#### PUT `/api/admin/linkedin-accounts/:id/assign`
-Assign LinkedIn account to a company
+#### POST `/api/admin/profiles`
+Create new profile
 
-**Request body:**
-```json
-{
-  "company_id": "uuid"
-}
-```
+#### PUT `/api/admin/profiles/:id/assign`
+Assign profile to a company
 
-**Response:**
-```json
-{
-  "success": true,
-  "account": {
-    "id": "uuid",
-    "company_id": "uuid",
-    "status": "assigned"
-  },
-  "message": "LinkedIn account assigned successfully"
-}
-```
+#### PUT `/api/admin/profiles/:id/unassign`
+Unassign profile from company
+
+#### DELETE `/api/admin/profiles/:id`
+Delete profile
+
+#### GET `/api/admin/stats`
+Get system-wide statistics
+
+#### GET `/api/admin/webhooks/recent`
+Get recent webhook activity
+
+#### POST `/api/admin/backfill`
+CSV backfill historical data
+
+**Request body (multipart/form-data):**
+- `file`: CSV file
+- `profileId`: Profile UUID
+- `skipExisting`: boolean
+- `updateExisting`: boolean
 
 ### Dashboard Endpoints (Public - No Auth)
 
@@ -288,34 +362,26 @@ curl -X POST http://localhost:3001/api/webhooks/expandi \
 
 ## 📊 Database
 
-### Local Development (SQLite)
-- Database file: `backend/database/dev.db`
-- Automatically created on first run
-- View with: `sqlite3 database/dev.db`
+### ⚠️ MIGRATION STATUS
+- ✅ **Completed:** SQLite → PostgreSQL migration
+- 🚧 **Current:** PostgreSQL on Railway
+- 📍 **Status:** Troubleshooting connection issues
 
-### Useful SQLite commands:
-```bash
-# Open database
-sqlite3 database/dev.db
+### Production (Current)
+- **Database:** PostgreSQL (Railway)
+- **Connection:** `DATABASE_URL=postgres://...` (set in Railway)
+- **Status:** Active but experiencing connection issues
+- **Management:** Via Railway dashboard
 
-# List tables
-.tables
+### Local Development (Legacy - No Longer Used)
+~~SQLite setup is deprecated. Local development now connects to Railway PostgreSQL.~~
 
-# View schema
-.schema companies
-
-# Query data
-SELECT * FROM companies;
-
-# Exit
-.quit
-```
-
-### Reset database:
-```bash
-rm database/dev.db
-npm run init-db
-```
+### Database Schema
+- **Tables:** companies, profiles, campaigns, events, contacts, admin_users
+- **Key Changes:** 
+  - `linkedin_accounts` → `profiles` (with `webhook_id` field)
+  - Added `admin_users` table for authentication
+  - Added `campaign_id` foreign key to `contacts` table
 
 ## 🚀 Production Deployment (Railway)
 

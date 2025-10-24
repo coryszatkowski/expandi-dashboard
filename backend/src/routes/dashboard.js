@@ -17,12 +17,12 @@ const AnalyticsService = require('../services/analyticsService');
  * Get company dashboard data by share token
  * Query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
  */
-router.get('/:shareToken', (req, res) => {
+router.get('/:shareToken', async (req, res) => {
   try {
     const { shareToken } = req.params;
 
     // Find company by share token
-    const company = Company.findByShareToken(shareToken);
+    const company = await Company.findByShareToken(shareToken);
 
     if (!company) {
       return res.status(404).json({
@@ -41,7 +41,7 @@ router.get('/:shareToken', (req, res) => {
     }
 
     // Get dashboard data
-    const dashboard = AnalyticsService.getCompanyDashboard(company.id, options);
+    const dashboard = await AnalyticsService.getCompanyDashboard(company.id, options);
 
     res.json({
       success: true,
@@ -66,56 +66,66 @@ router.get('/:shareToken', (req, res) => {
 /**
  * Helper function to get profile dashboard data
  */
-function getProfileDashboard(req, res, shareToken, profileId) {
-  // Find company by share token
-  const company = Company.findByShareToken(shareToken);
+async function getProfileDashboard(req, res, shareToken, profileId) {
+  try {
+    // Find company by share token
+    const company = await Company.findByShareToken(shareToken);
 
-  if (!company) {
-    return res.status(404).json({
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        error: 'Dashboard not found'
+      });
+    }
+
+    // Find Profile
+    const profile = await Profile.findById(profileId);
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
+      });
+    }
+
+    // Verify profile belongs to this company
+    if (profile.company_id !== company.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized access to this Profile'
+      });
+    }
+
+    // Parse date filters
+    const options = {};
+    if (req.query.start_date) {
+      options.start_date = req.query.start_date;
+    }
+    if (req.query.end_date) {
+      options.end_date = req.query.end_date;
+    }
+
+    // Get profile dashboard data
+    const dashboard = await AnalyticsService.getProfileDashboard(profileId, options);
+
+    res.json({
+      success: true,
+      account: {
+        id: profile.id,
+        account_name: profile.account_name,
+        account_email: profile.account_email,
+        company_name: profile.company_name
+      },
+      ...dashboard
+    });
+  } catch (error) {
+    console.error('Error in getProfileDashboard:', error);
+    res.status(500).json({
       success: false,
-      error: 'Dashboard not found'
+      error: 'Failed to fetch profile dashboard',
+      message: error.message
     });
   }
-
-  // Find Profile
-  const profile = Profile.findById(profileId);
-
-  if (!profile) {
-    return res.status(404).json({
-      success: false,
-      error: 'Profile not found'
-    });
-  }
-
-  // Verify profile belongs to this company
-  if (profile.company_id !== company.id) {
-    return res.status(403).json({
-      success: false,
-      error: 'Unauthorized access to this Profile'
-    });
-  }
-
-  // Parse date filters
-  const options = {};
-  if (req.query.start_date) {
-    options.start_date = req.query.start_date;
-  }
-  if (req.query.end_date) {
-    options.end_date = req.query.end_date;
-  }
-
-  // Get profile dashboard data
-  const dashboard = AnalyticsService.getProfileDashboard(profileId, options);
-
-  res.json({
-    success: true,
-    profile: {
-      id: profile.id,
-      account_name: profile.account_name,
-      account_email: profile.account_email
-    },
-    ...dashboard
-  });
 }
 
 /**
@@ -124,10 +134,10 @@ function getProfileDashboard(req, res, shareToken, profileId) {
  * Get Profile details
  * Query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
  */
-router.get('/:shareToken/profile/:profileId', (req, res) => {
+router.get('/:shareToken/profile/:profileId', async (req, res) => {
   try {
     const { shareToken, profileId } = req.params;
-    return getProfileDashboard(req, res, shareToken, profileId);
+    return await getProfileDashboard(req, res, shareToken, profileId);
   } catch (error) {
     console.error('Error fetching profile dashboard:', error);
     res.status(500).json({
@@ -144,10 +154,10 @@ router.get('/:shareToken/profile/:profileId', (req, res) => {
  * Legacy endpoint - redirects to profile endpoint
  * Query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
  */
-router.get('/:shareToken/linkedin-account/:accountId', (req, res) => {
+router.get('/:shareToken/linkedin-account/:accountId', async (req, res) => {
   try {
     const { shareToken, accountId } = req.params;
-    return getProfileDashboard(req, res, shareToken, accountId);
+    return await getProfileDashboard(req, res, shareToken, accountId);
   } catch (error) {
     console.error('Error fetching profile dashboard:', error);
     res.status(500).json({
@@ -164,12 +174,12 @@ router.get('/:shareToken/linkedin-account/:accountId', (req, res) => {
  * Get campaign details
  * Query params: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
  */
-router.get('/:shareToken/campaign/:campaignId', (req, res) => {
+router.get('/:shareToken/campaign/:campaignId', async (req, res) => {
   try {
     const { shareToken, campaignId } = req.params;
 
     // Find company by share token
-    const company = Company.findByShareToken(shareToken);
+    const company = await Company.findByShareToken(shareToken);
 
     if (!company) {
       return res.status(404).json({
@@ -179,7 +189,7 @@ router.get('/:shareToken/campaign/:campaignId', (req, res) => {
     }
 
     // Find campaign
-    const campaign = Campaign.findById(campaignId);
+    const campaign = await Campaign.findById(campaignId);
 
     if (!campaign) {
       return res.status(404).json({
@@ -206,7 +216,7 @@ router.get('/:shareToken/campaign/:campaignId', (req, res) => {
     }
 
     // Get campaign dashboard data
-    const dashboard = AnalyticsService.getCampaignDashboard(campaignId, options);
+    const dashboard = await AnalyticsService.getCampaignDashboard(campaignId, options);
 
     res.json({
       success: true,

@@ -83,7 +83,7 @@ export const getCompanyDashboard = async (shareToken, filters = {}) => {
 export const getAccountDashboard = async (shareToken, accountId, filters = {}) => {
   const params = new URLSearchParams(filters);
   const response = await api.get(
-    `/api/dashboard/${shareToken}/linkedin-account/${accountId}?${params}`
+    `/api/dashboard/${shareToken}/profile/${accountId}?${params}`
   );
   return response.data;
 };

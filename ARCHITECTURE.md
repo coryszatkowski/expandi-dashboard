@@ -5,7 +5,23 @@
 The Expandi Dashboard is a full-stack web application built with a decoupled architecture:
 - **Backend:** RESTful API (Node.js + Express)
 - **Frontend:** Single Page Application (React + Vite)
-- **Database:** SQLite (development) / PostgreSQL (production)
+- **Database:** PostgreSQL (Railway) - **MIGRATED FROM SQLITE**
+- **Authentication:** Admin login system (added beyond MVP)
+- **Deployment:** Railway (backend) + Vercel (frontend)
+
+## ⚠️ CURRENT DEPLOYMENT STATUS
+
+**CRITICAL FOR NEW DEVELOPERS:**
+- ✅ **Migration completed:** SQLite → PostgreSQL (Railway)
+- 🚧 **Currently troubleshooting:** Post-deployment issues on Railway
+- 🔧 **Active work:** Production environment fixes and webhook testing
+- 📍 **Current focus:** Railway database connection stability
+
+**DEVELOPMENT CLARIFICATION:**
+- ✅ Local development is fine to work on
+- ⚠️ When discussing "server issues" - we mean PRODUCTION server issues
+- ⚠️ Do NOT assume localhost issues when troubleshooting production problems
+- 🔧 We ARE making changes to production - that's the current focus
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -131,9 +147,10 @@ The Expandi Dashboard is a full-stack web application built with a decoupled arc
 
 ### Deployment
 - **Backend Hosting:** Railway (with PostgreSQL)
-- **Frontend Hosting:** Vercel
-- **Domain:** TBD
-- **SSL:** Auto-managed by platforms
+- **Frontend Hosting:** Railway
+- **Backend URL:** `https://api.dashboard.orionstrategy.com`
+- **Frontend URL:** `https://dashboard.orionstrategy.com`
+- **SSL:** Auto-managed by Railway
 
 ---
 
@@ -143,14 +160,15 @@ The Expandi Dashboard is a full-stack web application built with a decoupled arc
 
 ```
 ┌──────────────┐         ┌─────────────────────┐
-│  companies   │         │  linkedin_accounts  │
+│  companies   │         │     profiles        │
 ├──────────────┤         ├─────────────────────┤
 │ id (PK)      │◄────┐   │ id (PK)             │
 │ name         │     └───│ company_id (FK)     │
 │ share_token  │         │ account_name        │
 │ created_at   │         │ account_email       │
 │ updated_at   │         │ li_account_id       │
-└──────────────┘         │ status              │
+└──────────────┘         │ webhook_id (UNIQUE) │
+                         │ status              │
                          │ created_at          │
                          │ updated_at          │
                          └─────────────────────┘
@@ -161,7 +179,7 @@ The Expandi Dashboard is a full-stack web application built with a decoupled arc
                          │    campaigns        │
                          ├─────────────────────┤
                          │ id (PK)             │
-                    ┌────│ linkedin_account_id │
+                    ┌────│ profile_id (FK)    │
                     │    │ campaign_instance   │
                     │    │ campaign_name       │
                     │    │ started_at          │
@@ -190,6 +208,7 @@ The Expandi Dashboard is a full-stack web application built with a decoupled arc
                     │    │     contacts        │
                     │    ├─────────────────────┤
                     └───►│ contact_id (PK)     │
+                         │ campaign_id (FK)    │
                          │ first_name          │
                          │ last_name           │
                          │ company_name        │
@@ -200,6 +219,15 @@ The Expandi Dashboard is a full-stack web application built with a decoupled arc
                          │ created_at          │
                          │ updated_at          │
                          └─────────────────────┘
+
+┌─────────────────────┐
+│   admin_users       │ (Added beyond MVP)
+├─────────────────────┤
+│ id (PK)             │
+│ username            │
+│ password_hash       │
+│ created_at          │
+└─────────────────────┘
 ```
 
 ### Table Specifications
@@ -215,14 +243,15 @@ CREATE TABLE companies (
 );
 ```
 
-#### linkedin_accounts
+#### profiles (LinkedIn Accounts)
 ```sql
-CREATE TABLE linkedin_accounts (
+CREATE TABLE profiles (
   id TEXT PRIMARY KEY,
   company_id TEXT,
   account_name TEXT NOT NULL,
   account_email TEXT,
-  li_account_id INTEGER NOT NULL UNIQUE,
+  li_account_id INTEGER,
+  webhook_id TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'unassigned',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -234,13 +263,13 @@ CREATE TABLE linkedin_accounts (
 ```sql
 CREATE TABLE campaigns (
   id TEXT PRIMARY KEY,
-  linkedin_account_id TEXT NOT NULL,
+  profile_id TEXT NOT NULL,
   campaign_instance TEXT NOT NULL UNIQUE,
   campaign_name TEXT NOT NULL,
   started_at TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY (linkedin_account_id) REFERENCES linkedin_accounts(id) ON DELETE CASCADE
+  FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 ```
 
@@ -265,6 +294,7 @@ CREATE TABLE events (
 ```sql
 CREATE TABLE contacts (
   contact_id INTEGER PRIMARY KEY,
+  campaign_id TEXT NOT NULL,
   first_name TEXT,
   last_name TEXT,
   company_name TEXT,
@@ -273,16 +303,31 @@ CREATE TABLE contacts (
   email TEXT,
   phone TEXT,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+);
+```
+
+#### admin_users (Added beyond MVP)
+```sql
+CREATE TABLE admin_users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );
 ```
 
 ### Indexes
 ```sql
-CREATE INDEX idx_linkedin_accounts_company_id ON linkedin_accounts(company_id);
-CREATE INDEX idx_campaigns_linkedin_account_id ON campaigns(linkedin_account_id);
+CREATE INDEX idx_profiles_company_id ON profiles(company_id);
+CREATE INDEX idx_profiles_status ON profiles(status);
+CREATE INDEX idx_profiles_webhook_id ON profiles(webhook_id);
+CREATE INDEX idx_campaigns_profile_id ON campaigns(profile_id);
+CREATE INDEX idx_campaigns_campaign_instance ON campaigns(campaign_instance);
 CREATE INDEX idx_events_campaign_id ON events(campaign_id);
 CREATE INDEX idx_events_contact_id ON events(contact_id);
+CREATE INDEX idx_events_event_type ON events(event_type);
 CREATE INDEX idx_events_invited_at ON events(invited_at);
 CREATE INDEX idx_events_connected_at ON events(connected_at);
 CREATE INDEX idx_events_replied_at ON events(replied_at);
@@ -677,12 +722,14 @@ Railway
 ├── Backend Service
 │   ├── Node.js app
 │   ├── PostgreSQL database
-│   └── Environment variables
+│   ├── Environment variables
+│   └── URL: api.dashboard.orionstrategy.com
 │
-Vercel
+Railway
 └── Frontend Service
     ├── Static React build
-    └── Environment variables (API URL)
+    ├── Environment variables (API URL)
+    └── URL: dashboard.orionstrategy.com
 ```
 
 ---
