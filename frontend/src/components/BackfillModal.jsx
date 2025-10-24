@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileSpreadsheet, AlertCircle, Check, X } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://backend-production-b2e1.up.railway.app';
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.dashboard.theorionstrategy.com';
 
 export default function BackfillModal({ isOpen, onClose, profileId, profileName, profiles = [] }) {
   // Handle special case for "all" profiles

@@ -8,8 +8,8 @@ export default defineConfig({
     port: process.env.PORT || 5173,
     allowedHosts: [
       'localhost',
-      'frontend-production-4133.up.railway.app',
-      '.railway.app' // Allow all Railway domains
+      'dashboard.theorionstrategy.com',
+      'api.dashboard.theorionstrategy.com'
     ]
   },
   server: {

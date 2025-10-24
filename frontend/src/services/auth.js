@@ -4,7 +4,7 @@
  * Handles admin authentication and session management.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://backend-production-b2e1.up.railway.app';
+const API_URL = import.meta.env.VITE_API_URL || 'https://api.dashboard.theorionstrategy.com';
 
 /**
  * Check if user is authenticated as admin
