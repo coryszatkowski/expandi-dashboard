@@ -4,6 +4,7 @@ import { getCompanies, createCompany, updateCompany, deleteCompany, getLinkedInA
 import { logout, login, isAuthenticated } from '../services/auth';
 import SettingsModal from '../components/SettingsModal';
 import BackfillModal from '../components/BackfillModal';
+import Header from '../components/Header';
 import { Plus, TrendingUp, Users, Briefcase, AlertCircle, ExternalLink, Edit, Trash2, Copy, Check, ArrowUpDown, LogOut, Lock, User, Settings, FileSpreadsheet } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -436,31 +437,23 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-500">Manage companies and LinkedIn accounts</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={loadData}
-                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
-              >
-                Refresh Data
-              </button>
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <Settings className="w-4 h-4" />
-                Settings
-              </button>
-            </div>
-          </div>
+      <Header>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+          >
+            Refresh Data
+          </button>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </button>
         </div>
-      </div>
+      </Header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats */}

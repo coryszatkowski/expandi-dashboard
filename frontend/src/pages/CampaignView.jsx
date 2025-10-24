@@ -4,6 +4,7 @@ import { getCampaignDashboard, deleteContact } from '../services/api';
 import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
 import DateRangeFilter from '../components/DateRangeFilter';
+import Header from '../components/Header';
 import { formatDateTime, formatDate } from '../utils/timezone';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2 } from 'lucide-react';
 
@@ -104,30 +105,20 @@ export default function CampaignView() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <Header>
+        <div className="flex items-center gap-4">
           <button
             onClick={() => window.history.back()}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
+            className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{campaign.campaign_name}</h1>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                {campaign.account_name}
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Started: {new Date(campaign.started_at).toLocaleDateString()}
-              </div>
-            </div>
+          <div className="text-sm text-gray-500">
+            Campaign: {campaign.campaign_name}
           </div>
         </div>
-      </div>
+      </Header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}

@@ -4,6 +4,7 @@ import { getAccountDashboard, deleteCampaign } from '../services/api';
 import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
 import DateRangeFilter from '../components/DateRangeFilter';
+import Header from '../components/Header';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, ChevronRight, Calendar, Edit3, Trash2 } from 'lucide-react';
 
 export default function AccountView() {
@@ -102,26 +103,20 @@ export default function AccountView() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <Header>
+        <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(`/c/${shareToken}${isAdmin ? '?admin=true' : ''}`)}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
+            className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{account.account_name}</h1>
-            {account.company_name && (
-              <p className="mt-1 text-sm text-gray-500">{account.company_name}</p>
-            )}
-            {account.account_email && (
-              <p className="mt-1 text-sm text-gray-500">{account.account_email}</p>
-            )}
+          <div className="text-sm text-gray-500">
+            {account.account_name} Dashboard
           </div>
         </div>
-      </div>
+      </Header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}
