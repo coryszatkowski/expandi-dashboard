@@ -42,7 +42,10 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
   const presetRanges = [
     { label: 'Today', getRange: () => {
       const today = new Date();
-      return { start_date: format(today, 'yyyy-MM-dd'), end_date: format(today, 'yyyy-MM-dd') };
+      // Ensure we're using the current local date
+      const todayString = format(today, 'yyyy-MM-dd');
+      console.log('Today preset:', todayString, 'Current date:', today);
+      return { start_date: todayString, end_date: todayString };
     }},
     { label: 'Yesterday', getRange: () => {
       const yesterday = subDays(new Date(), 1);
@@ -102,6 +105,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
   // Handle preset range selection
   const handlePresetSelect = (preset) => {
     const range = preset.getRange();
+    console.log('Preset selected:', preset.label, 'Range:', range);
     setSelectedRange(range);
     saveRecentlyUsed(range);
     onFilter(range);
@@ -199,6 +203,8 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return 'Select date range';
     }
+    
+    console.log('Display text - selectedRange:', selectedRange, 'startDate:', startDate, 'endDate:', endDate);
     
     if (isSameDay(startDate, endDate)) {
       return format(startDate, 'MMM d, yyyy');
