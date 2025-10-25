@@ -42,10 +42,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
   const presetRanges = [
     { label: 'Today', getRange: () => {
       const today = new Date();
-      // Ensure we're using the current local date
-      const todayString = format(today, 'yyyy-MM-dd');
-      console.log('Today preset:', todayString, 'Current date:', today);
-      return { start_date: todayString, end_date: todayString };
+      return { start_date: format(today, 'yyyy-MM-dd'), end_date: format(today, 'yyyy-MM-dd') };
     }},
     { label: 'Yesterday', getRange: () => {
       const yesterday = subDays(new Date(), 1);
@@ -105,7 +102,6 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
   // Handle preset range selection
   const handlePresetSelect = (preset) => {
     const range = preset.getRange();
-    console.log('Preset selected:', preset.label, 'Range:', range);
     setSelectedRange(range);
     saveRecentlyUsed(range);
     onFilter(range);
@@ -196,15 +192,14 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
       return 'Select date range';
     }
     
-    const startDate = new Date(selectedRange.start_date);
-    const endDate = new Date(selectedRange.end_date);
+    const startDate = new Date(selectedRange.start_date + 'T00:00:00');
+    const endDate = new Date(selectedRange.end_date + 'T00:00:00');
     
     // Check if dates are valid
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return 'Select date range';
     }
     
-    console.log('Display text - selectedRange:', selectedRange, 'startDate:', startDate, 'endDate:', endDate);
     
     if (isSameDay(startDate, endDate)) {
       return format(startDate, 'MMM d, yyyy');
@@ -252,8 +247,8 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                 <div className="mb-4">
                   <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Recently Used</h4>
                   {recentlyUsed.map((range, index) => {
-                    const startDate = new Date(range.start_date);
-                    const endDate = new Date(range.end_date);
+                    const startDate = new Date(range.start_date + 'T00:00:00');
+                    const endDate = new Date(range.end_date + 'T00:00:00');
                     const isValidRange = !isNaN(startDate.getTime()) && !isNaN(endDate.getTime());
                     
                     return (
@@ -427,8 +422,8 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                         ? `${format(tempStartDate, 'MMM d, yyyy')} - ${format(tempEndDate, 'MMM d, yyyy')}`
                         : selectedRange && selectedRange.start_date && selectedRange.end_date
                           ? (() => {
-                              const startDate = new Date(selectedRange.start_date);
-                              const endDate = new Date(selectedRange.end_date);
+                              const startDate = new Date(selectedRange.start_date + 'T00:00:00');
+                              const endDate = new Date(selectedRange.end_date + 'T00:00:00');
                               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                                 return 'Invalid date range';
                               }
