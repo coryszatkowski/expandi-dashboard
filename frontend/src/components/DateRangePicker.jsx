@@ -223,7 +223,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-96">
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[800px]">
           <div className="flex">
             {/* Left Sidebar - Preset Ranges */}
             <div className="w-48 border-r border-gray-200 p-4">
@@ -284,15 +284,15 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="grid grid-cols-7 gap-2 mb-2">
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                  <div key={day} className="text-xs font-medium text-gray-500 text-center py-1">
+                  <div key={day} className="text-xs font-medium text-gray-500 text-center py-1 px-1">
                     {day}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-2">
                 {days.map((day, index) => {
                   const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
                   const isSelected = isDateSelected(day, tempStartDate, tempEndDate);
@@ -304,7 +304,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                       key={index}
                       onClick={() => handleDateClick(day)}
                       className={`
-                        w-8 h-8 text-xs rounded flex items-center justify-center
+                        w-10 h-10 text-sm rounded flex items-center justify-center
                         ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}
                         ${isToday ? 'bg-primary-100 text-primary-700 font-medium' : ''}
                         ${isSelected ? 'bg-primary text-white font-medium' : ''}
@@ -319,7 +319,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               </div>
 
               {/* Second Month */}
-              <div className="mt-4">
+              <div className="mt-8">
                 <div className="flex items-center justify-between mb-4">
                   <button
                     onClick={() => navigateMonth(-1)}
@@ -338,15 +338,15 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1 mb-2">
+                <div className="grid grid-cols-7 gap-2 mb-2">
                   {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                    <div key={day} className="text-xs font-medium text-gray-500 text-center py-1">
+                    <div key={day} className="text-xs font-medium text-gray-500 text-center py-1 px-1">
                       {day}
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-2">
                   {nextDays.map((day, index) => {
                     const isCurrentMonth = day.getMonth() === nextMonth.getMonth();
                     const isSelected = isDateSelected(day, tempStartDate, tempEndDate);
@@ -358,7 +358,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                         key={index}
                         onClick={() => handleDateClick(day)}
                         className={`
-                          w-8 h-8 text-xs rounded flex items-center justify-center
+                          w-10 h-10 text-sm rounded flex items-center justify-center
                           ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}
                           ${isToday ? 'bg-primary-100 text-primary-700 font-medium' : ''}
                           ${isSelected ? 'bg-primary text-white font-medium' : ''}

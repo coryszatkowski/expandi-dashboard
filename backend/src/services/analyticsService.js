@@ -330,18 +330,29 @@ class AnalyticsService {
 
     if (options.start_date && options.end_date && options.start_date === options.end_date) {
       // Single day filter: check if any timestamp falls on this date
-      whereClause += ' AND (DATE(invited_at) = ? OR DATE(connected_at) = ? OR DATE(replied_at) = ?)';
-      params.push(options.start_date, options.start_date, options.start_date);
+      // Use date range to capture the full day in any timezone
+      const startOfDay = `${options.start_date} 00:00:00`;
+      const endOfDay = `${options.start_date} 23:59:59`;
+      
+      whereClause += ' AND (';
+      whereClause += '(invited_at >= ? AND invited_at <= ?) OR ';
+      whereClause += '(connected_at >= ? AND connected_at <= ?) OR ';
+      whereClause += '(replied_at >= ? AND replied_at <= ?)';
+      whereClause += ')';
+      
+      params.push(startOfDay, endOfDay, startOfDay, endOfDay, startOfDay, endOfDay);
     } else {
       // Date range filter: check if any timestamp falls within the range
       if (options.start_date) {
+        const startOfDay = `${options.start_date} 00:00:00`;
         whereClause += ' AND (invited_at >= ? OR connected_at >= ? OR replied_at >= ?)';
-        params.push(options.start_date, options.start_date, options.start_date);
+        params.push(startOfDay, startOfDay, startOfDay);
       }
 
       if (options.end_date) {
+        const endOfDay = `${options.end_date} 23:59:59`;
         whereClause += ' AND (invited_at <= ? OR connected_at <= ? OR replied_at <= ?)';
-        params.push(options.end_date, options.end_date, options.end_date);
+        params.push(endOfDay, endOfDay, endOfDay);
       }
     }
 
@@ -358,13 +369,15 @@ class AnalyticsService {
     let whereClause = '';
 
     if (options.start_date) {
-      whereClause += ' AND DATE(COALESCE(invited_at, connected_at, replied_at)) >= ?';
-      params.push(options.start_date);
+      const startOfDay = `${options.start_date} 00:00:00`;
+      whereClause += ' AND COALESCE(invited_at, connected_at, replied_at) >= ?';
+      params.push(startOfDay);
     }
 
     if (options.end_date) {
-      whereClause += ' AND DATE(COALESCE(invited_at, connected_at, replied_at)) <= ?';
-      params.push(options.end_date);
+      const endOfDay = `${options.end_date} 23:59:59`;
+      whereClause += ' AND COALESCE(invited_at, connected_at, replied_at) <= ?';
+      params.push(endOfDay);
     }
 
     return { timelineWhereClause: whereClause, timelineParams: params };
