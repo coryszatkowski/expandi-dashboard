@@ -214,7 +214,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
       {/* Dropdown Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        className="flex items-center gap-1 px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
       >
         <Calendar className="w-4 h-4 text-gray-500" />
         <span className="text-sm font-medium text-gray-700">{getDisplayText()}</span>
@@ -223,7 +223,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[800px]">
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-[600px]">
           <div className="flex">
             {/* Left Sidebar - Preset Ranges */}
             <div className="w-48 border-r border-gray-200 p-4">
@@ -251,15 +251,26 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
 
               {/* Preset Ranges */}
               <div className="space-y-1">
-                {presetRanges.map((preset, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handlePresetSelect(preset)}
-                    className="w-full text-left px-2 py-1 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-700 rounded"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+                {presetRanges.map((preset, index) => {
+                  const presetRange = preset.getRange();
+                  const isActive = selectedRange && 
+                    selectedRange.start_date === presetRange.start_date && 
+                    selectedRange.end_date === presetRange.end_date;
+                  
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handlePresetSelect(preset)}
+                      className={`w-full text-left px-2 py-1 text-sm rounded ${
+                        isActive 
+                          ? 'bg-primary-100 text-primary-700 font-medium' 
+                          : 'text-gray-700 hover:bg-primary-50 hover:text-primary-700'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -284,7 +295,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2 mb-2">
+              <div className="grid grid-cols-7 gap-1 mb-2">
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                   <div key={day} className="text-xs font-medium text-gray-500 text-center py-1 px-1">
                     {day}
@@ -292,7 +303,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1">
                 {days.map((day, index) => {
                   const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
                   const isSelected = isDateSelected(day, tempStartDate, tempEndDate);
@@ -304,7 +315,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                       key={index}
                       onClick={() => handleDateClick(day)}
                       className={`
-                        w-10 h-10 text-sm rounded flex items-center justify-center
+                        w-8 h-8 text-xs rounded flex items-center justify-center
                         ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}
                         ${isToday ? 'bg-primary-100 text-primary-700 font-medium' : ''}
                         ${isSelected ? 'bg-primary text-white font-medium' : ''}
@@ -319,7 +330,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               </div>
 
               {/* Second Month */}
-              <div className="mt-8">
+              <div className="mt-4">
                 <div className="flex items-center justify-between mb-4">
                   <button
                     onClick={() => navigateMonth(-1)}
@@ -338,7 +349,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-2 mb-2">
+                <div className="grid grid-cols-7 gap-1 mb-2">
                   {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                     <div key={day} className="text-xs font-medium text-gray-500 text-center py-1 px-1">
                       {day}
@@ -346,7 +357,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-1">
                   {nextDays.map((day, index) => {
                     const isCurrentMonth = day.getMonth() === nextMonth.getMonth();
                     const isSelected = isDateSelected(day, tempStartDate, tempEndDate);
@@ -358,7 +369,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
                         key={index}
                         onClick={() => handleDateClick(day)}
                         className={`
-                          w-10 h-10 text-sm rounded flex items-center justify-center
+                          w-8 h-8 text-xs rounded flex items-center justify-center
                           ${!isCurrentMonth ? 'text-gray-300' : 'text-gray-700'}
                           ${isToday ? 'bg-primary-100 text-primary-700 font-medium' : ''}
                           ${isSelected ? 'bg-primary text-white font-medium' : ''}
@@ -374,16 +385,22 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               </div>
 
               {/* Selected Range Display */}
-              {tempStartDate && tempEndDate && (
+              {(tempStartDate && tempEndDate) || selectedRange ? (
                 <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
                   <div className="text-sm text-primary-800">
-                    <strong>Selected:</strong> {format(tempStartDate, 'MMM d, yyyy')} - {format(tempEndDate, 'MMM d, yyyy')}
+                    <strong>Selected:</strong> {
+                      tempStartDate && tempEndDate 
+                        ? `${format(tempStartDate, 'MMM d, yyyy')} - ${format(tempEndDate, 'MMM d, yyyy')}`
+                        : selectedRange 
+                          ? `${format(new Date(selectedRange.start_date), 'MMM d, yyyy')} - ${format(new Date(selectedRange.end_date), 'MMM d, yyyy')}`
+                          : 'No range selected'
+                    }
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex justify-end gap-1 mt-4">
                 <button
                   onClick={() => {
                     setIsOpen(false);
