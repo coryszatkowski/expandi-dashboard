@@ -5,6 +5,11 @@ import { ChevronDown, Calendar, X } from 'lucide-react';
 const DateRangePicker = ({ onFilter, initialRange = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedRange, setSelectedRange] = useState(initialRange);
+
+  // Update selectedRange when initialRange prop changes
+  useEffect(() => {
+    setSelectedRange(initialRange);
+  }, [initialRange]);
   const [tempStartDate, setTempStartDate] = useState(null);
   const [tempEndDate, setTempEndDate] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -223,7 +228,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-[600px]">
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-[480px]">
           <div className="flex">
             {/* Left Sidebar - Preset Ranges */}
             <div className="w-48 border-r border-gray-200 p-4">

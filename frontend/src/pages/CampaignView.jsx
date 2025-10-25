@@ -142,7 +142,7 @@ export default function CampaignView() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}
         <div className="mb-6">
-          <DateRangePicker onFilter={setFilters} />
+          <DateRangePicker onFilter={setFilters} initialRange={filters} />
         </div>
 
         {/* KPI Cards */}
