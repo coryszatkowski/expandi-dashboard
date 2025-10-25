@@ -15,6 +15,9 @@ const Company = require('../models/Company');
 const Profile = require('../models/Profile');
 const AnalyticsService = require('../services/analyticsService');
 const BackfillService = require('../services/backfillService');
+const { requireAuth } = require('../middleware/auth');
+const { sanitizeCompanyName } = require('../utils/sanitizer');
+const { validateCSVContent, isActualCSV } = require('../middleware/fileValidator');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -63,11 +66,13 @@ const upload = multer({
  * Backfill historical data from CSV file
  * Body: FormData with file, profileId, campaignName, backfillDate, skipExisting, updateExisting
  */
-router.post('/backfill', upload.single('file'), async (req, res) => {
+router.post('/backfill', requireAuth, upload.single('file'), async (req, res) => {
   try {
-    console.log('Backfill request received:', {
-      body: req.body,
-      file: req.file ? { originalname: req.file.originalname, mimetype: req.file.mimetype } : null
+    console.log('📊 Backfill request received:', {
+      profileId: req.body.profileId,
+      fileSize: req.file?.size,
+      fileName: req.file?.originalname,
+      timestamp: new Date().toISOString()
     });
     
     const { profileId, skipExisting, updateExisting } = req.body;
@@ -87,6 +92,31 @@ router.post('/backfill', upload.single('file'), async (req, res) => {
         error: 'profileId is required'
       });
     }
+
+    // Validate file content
+    console.log('Validating CSV content...');
+    const isCSV = await isActualCSV(file.path);
+    if (!isCSV) {
+      // Clean up file
+      fs.unlinkSync(file.path);
+      return res.status(400).json({
+        success: false,
+        error: 'File is not a valid CSV format'
+      });
+    }
+
+    const validation = await validateCSVContent(file.path);
+    if (!validation.valid) {
+      // Clean up file
+      fs.unlinkSync(file.path);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid CSV content',
+        details: validation.errors
+      });
+    }
+
+    console.log('✅ CSV validation passed');
 
 
     // Validate profile exists
@@ -159,7 +189,7 @@ router.use((error, req, res, next) => {
  * 
  * Get backfill statistics for a profile
  */
-router.get('/backfill/stats/:profileId', async (req, res) => {
+router.get('/backfill/stats/:profileId', requireAuth, async (req, res) => {
   try {
     const { profileId } = req.params;
     
@@ -198,7 +228,7 @@ router.get('/backfill/stats/:profileId', async (req, res) => {
  * 
  * Get all companies with their statistics
  */
-router.get('/companies', async (req, res) => {
+router.get('/companies', requireAuth, async (req, res) => {
   try {
     const companies = await Company.findAll();
 
@@ -239,7 +269,7 @@ router.get('/companies', async (req, res) => {
  * 
  * Get a single company by ID
  */
-router.get('/companies/:id', async (req, res) => {
+router.get('/companies/:id', requireAuth, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
 
@@ -270,7 +300,7 @@ router.get('/companies/:id', async (req, res) => {
  * Create a new company
  * Body: { "name": "Company Name" }
  */
-router.post('/companies', async (req, res) => {
+router.post('/companies', requireAuth, async (req, res) => {
   try {
     const { name } = req.body;
 
@@ -281,10 +311,20 @@ router.post('/companies', async (req, res) => {
       });
     }
 
+    // Sanitize company name
+    const sanitizedName = sanitizeCompanyName(name);
+    
+    if (!sanitizedName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Company name cannot be empty after sanitization'
+      });
+    }
+
     // Use Company model for consistency
 
     // Check if company with this name already exists
-    const existing = await db.selectOne('SELECT id FROM companies WHERE name = ?', [name]);
+    const existing = await db.selectOne('SELECT id FROM companies WHERE name = ?', [sanitizedName]);
 
     if (existing) {
       return res.status(400).json({
@@ -294,7 +334,7 @@ router.post('/companies', async (req, res) => {
     }
 
     // Create company using Company model
-    const company = await Company.create(name);
+    const company = await Company.create(sanitizedName);
 
     res.status(201).json({
       success: true,
@@ -316,7 +356,7 @@ router.post('/companies', async (req, res) => {
  * Update a company
  * Body: { "name": "New Company Name" }
  */
-router.put('/companies/:id', async (req, res) => {
+router.put('/companies/:id', requireAuth, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
 
@@ -348,7 +388,7 @@ router.put('/companies/:id', async (req, res) => {
  * 
  * Regenerate share token for a company
  */
-router.post('/companies/:id/regenerate-token', async (req, res) => {
+router.post('/companies/:id/regenerate-token', requireAuth, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
 
@@ -381,7 +421,7 @@ router.post('/companies/:id/regenerate-token', async (req, res) => {
  * 
  * Delete a company
  */
-router.delete('/companies/:id', async (req, res) => {
+router.delete('/companies/:id', requireAuth, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
 
@@ -424,7 +464,7 @@ router.delete('/companies/:id', async (req, res) => {
  * GET /api/admin/linkedin-accounts
  * Legacy endpoint - redirects to profiles
  */
-router.get('/linkedin-accounts', async (req, res) => {
+router.get('/linkedin-accounts', requireAuth, async (req, res) => {
   try {
     console.log('linkedin-accounts endpoint called');
     const filters = {};
@@ -459,7 +499,7 @@ router.get('/linkedin-accounts', async (req, res) => {
  * GET /api/admin/linkedin-accounts/unassigned
  * Legacy endpoint - redirects to profiles
  */
-router.get('/linkedin-accounts/unassigned', async (req, res) => {
+router.get('/linkedin-accounts/unassigned', requireAuth, async (req, res) => {
   try {
     const profiles = await Profile.findUnassigned();
 
@@ -481,7 +521,7 @@ router.get('/linkedin-accounts/unassigned', async (req, res) => {
  * POST /api/admin/linkedin-accounts
  * Legacy endpoint - redirects to profiles
  */
-router.post('/linkedin-accounts', async (req, res) => {
+router.post('/linkedin-accounts', requireAuth, async (req, res) => {
   try {
     const { account_name, li_account_id, company_id } = req.body;
 
@@ -544,7 +584,7 @@ router.post('/linkedin-accounts', async (req, res) => {
  * PUT /api/admin/linkedin-accounts/:id/assign
  * Legacy endpoint - redirects to profiles
  */
-router.put('/linkedin-accounts/:id/assign', async (req, res) => {
+router.put('/linkedin-accounts/:id/assign', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { company_id } = req.body;
@@ -594,7 +634,7 @@ router.put('/linkedin-accounts/:id/assign', async (req, res) => {
  * PUT /api/admin/linkedin-accounts/:id/unassign
  * Legacy endpoint - redirects to profiles
  */
-router.put('/linkedin-accounts/:id/unassign', async (req, res) => {
+router.put('/linkedin-accounts/:id/unassign', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -626,7 +666,7 @@ router.put('/linkedin-accounts/:id/unassign', async (req, res) => {
  * DELETE /api/admin/linkedin-accounts/:id
  * Legacy endpoint - redirects to profiles
  */
-router.delete('/linkedin-accounts/:id', async (req, res) => {
+router.delete('/linkedin-accounts/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -663,7 +703,7 @@ router.delete('/linkedin-accounts/:id', async (req, res) => {
  * Get all Profiles with optional filters
  * Query params: ?status=assigned|unassigned&company_id=uuid
  */
-router.get('/profiles', async (req, res) => {
+router.get('/profiles', requireAuth, async (req, res) => {
   try {
     const filters = {};
 
@@ -696,7 +736,7 @@ router.get('/profiles', async (req, res) => {
  * 
  * Get all unassigned Profiles
  */
-router.get('/profiles/unassigned', async (req, res) => {
+router.get('/profiles/unassigned', requireAuth, async (req, res) => {
   try {
     const profiles = await Profile.findUnassigned();
 
@@ -720,7 +760,7 @@ router.get('/profiles/unassigned', async (req, res) => {
  * Assign a Profile to a company
  * Body: { "company_id": "uuid" }
  */
-router.put('/profiles/:id/assign', async (req, res) => {
+router.put('/profiles/:id/assign', requireAuth, async (req, res) => {
   try {
     const { company_id } = req.body;
 
@@ -772,7 +812,7 @@ router.put('/profiles/:id/assign', async (req, res) => {
  * 
  * Unassign a Profile from its company
  */
-router.put('/profiles/:id/unassign', async (req, res) => {
+router.put('/profiles/:id/unassign', requireAuth, async (req, res) => {
   try {
     const account = await Profile.findById(req.params.id);
 
@@ -806,7 +846,7 @@ router.put('/profiles/:id/unassign', async (req, res) => {
  * Create a new Profile manually
  * Body: { "account_name": "string", "li_account_id": number, "company_id": "uuid" (optional) }
  */
-router.post('/profiles', async (req, res) => {
+router.post('/profiles', requireAuth, async (req, res) => {
   try {
     const { account_name, li_account_id, company_id } = req.body;
 

@@ -9,6 +9,30 @@ const api = axios.create({
   },
 });
 
+// Add request interceptor to include JWT token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('adminToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Add response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token is invalid or expired
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminSession');
+      // Redirect to login or show login modal
+      window.location.href = '/admin';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ========== ADMIN ENDPOINTS ==========
 
 export const getCompanies = async () => {

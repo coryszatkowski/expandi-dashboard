@@ -6,7 +6,7 @@
  */
 
 const db = require('../utils/databaseHelper');
-const { format, parseISO, startOfDay, endOfDay } = require('date-fns');
+const { format, parseISO, startOfDay, endOfDay, addDays } = require('date-fns');
 
 class AnalyticsService {
   /**
@@ -257,8 +257,8 @@ class AnalyticsService {
     // Build timeline-specific date filter
     const { timelineWhereClause, timelineParams } = this.buildTimelineDateFilter(options);
 
-    // Group by date
-    return await db.selectAll(`
+    // Get actual data from database
+    const actualData = await db.selectAll(`
       SELECT 
         DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
         COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
@@ -271,6 +271,36 @@ class AnalyticsService {
       GROUP BY date
       ORDER BY date ASC
     `, [...campaignIds, ...timelineParams]);
+
+    // If no date range specified, return actual data
+    if (!options.start_date || !options.end_date) {
+      return actualData;
+    }
+
+    // Generate complete date range with zero values for days with no activity
+    // Use UTC to avoid timezone issues - treat dates as user's local dates
+    const startDate = new Date(options.start_date + 'T00:00:00Z');
+    const endDate = new Date(options.end_date + 'T23:59:59Z');
+    const completeRange = [];
+    
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateString = format(currentDate, 'yyyy-MM-dd');
+      
+      // Find actual data for this date
+      const dayData = actualData.find(d => d.date === dateString);
+      
+      completeRange.push({
+        date: dateString,
+        invites: dayData ? parseInt(dayData.invites) : 0,
+        connections: dayData ? parseInt(dayData.connections) : 0,
+        replies: dayData ? parseInt(dayData.replies) : 0
+      });
+      
+      currentDate = addDays(currentDate, 1);
+    }
+
+    return completeRange;
   }
 
   /**
@@ -282,7 +312,8 @@ class AnalyticsService {
   static async getCampaignTimeline(campaignId, options = {}) {
     const { whereClause, params } = this.buildDateFilter(options);
 
-    return await db.selectAll(`
+    // Get actual data from database
+    const actualData = await db.selectAll(`
       SELECT 
         DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
         COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
@@ -295,6 +326,36 @@ class AnalyticsService {
       GROUP BY date
       ORDER BY date ASC
     `, [campaignId, ...params]);
+
+    // If no date range specified, return actual data
+    if (!options.start_date || !options.end_date) {
+      return actualData;
+    }
+
+    // Generate complete date range with zero values for days with no activity
+    // Use UTC to avoid timezone issues - treat dates as user's local dates
+    const startDate = new Date(options.start_date + 'T00:00:00Z');
+    const endDate = new Date(options.end_date + 'T23:59:59Z');
+    const completeRange = [];
+    
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateString = format(currentDate, 'yyyy-MM-dd');
+      
+      // Find actual data for this date
+      const dayData = actualData.find(d => d.date === dateString);
+      
+      completeRange.push({
+        date: dateString,
+        invites: dayData ? parseInt(dayData.invites) : 0,
+        connections: dayData ? parseInt(dayData.connections) : 0,
+        replies: dayData ? parseInt(dayData.replies) : 0
+      });
+      
+      currentDate = addDays(currentDate, 1);
+    }
+
+    return completeRange;
   }
 
   /**

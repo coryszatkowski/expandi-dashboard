@@ -12,17 +12,20 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://api.dashboard.theorions
 export const isAuthenticated = () => {
   try {
     const session = localStorage.getItem('adminSession');
-    if (!session) return false;
+    const token = localStorage.getItem('adminToken');
+    
+    if (!session || !token) return false;
     
     const sessionData = JSON.parse(session);
     
     // Check if session is valid (not expired)
     const now = Date.now();
     const sessionAge = now - sessionData.timestamp;
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days (matching JWT expiry)
     
     if (sessionAge > maxAge) {
       localStorage.removeItem('adminSession');
+      localStorage.removeItem('adminToken');
       return false;
     }
     
@@ -65,7 +68,8 @@ export const login = async (username, password) => {
     const data = await response.json();
 
     if (data.success) {
-      // Store session
+      // Store JWT token AND session
+      localStorage.setItem('adminToken', data.token);
       localStorage.setItem('adminSession', JSON.stringify({
         authenticated: true,
         user: data.user,
@@ -87,6 +91,7 @@ export const login = async (username, password) => {
  */
 export const logout = () => {
   localStorage.removeItem('adminSession');
+  localStorage.removeItem('adminToken');
 };
 
 /**

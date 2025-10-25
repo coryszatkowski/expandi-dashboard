@@ -8,9 +8,16 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const { initializeDatabase, closeDatabase } = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
-const { webhookLimiter, adminLimiter } = require('./middleware/rateLimiter');
+const { 
+  webhookLimiter, 
+  adminLimiter, 
+  authLimiter, 
+  loginLimiter, 
+  passwordChangeLimiter 
+} = require('./middleware/rateLimiter');
 
 // Import routes
 const webhookRoutes = require('./routes/webhooks');
@@ -30,13 +37,61 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 // Parse JSON request bodies
 app.use(express.json());
 
-// CORS configuration - allow multiple origins
-const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',')
-  : ['http://localhost:5173', 'https://dashboard.theorionstrategy.com'];
+// Security headers
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    noSniff: true,
+    frameguard: { action: 'deny' },
+    hidePoweredBy: true,
+    xssFilter: true
+  }));
+} else {
+  app.use(helmet({ 
+    contentSecurityPolicy: false, 
+    hsts: false 
+  }));
+}
+
+// CORS configuration - allow specific origins only
+const getAllowedOrigins = () => {
+  const baseOrigins = ['http://localhost:5173']; // Always allow local development
+  
+  if (process.env.FRONTEND_URL) {
+    const frontendUrls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+    return [...baseOrigins, ...frontendUrls];
+  }
+  
+  // Fallback for production
+  return [...baseOrigins, 'https://dashboard.theorionstrategy.com'];
+};
+
+const allowedOrigins = getAllowedOrigins();
 
 app.use(cors({
-  origin: true, // Allow all origins for now
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -45,6 +100,9 @@ app.use(cors({
 // Rate limiting
 app.use('/api/webhooks', webhookLimiter);
 app.use('/api/admin', adminLimiter);
+app.use('/api/auth', authLimiter); // General auth rate limiting
+app.use('/api/auth/login', loginLimiter); // Extra protection for login
+app.use('/api/auth/change-password', passwordChangeLimiter); // Password change protection
 
 // Request logging middleware
 app.use((req, res, next) => {

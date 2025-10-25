@@ -7,6 +7,7 @@
 const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
+const { sanitizeContactData } = require('./sanitizer');
 
 class CSVParser {
   /**
@@ -42,7 +43,9 @@ class CSVParser {
           
           // Only add if we have a valid ID
           if (contactData.id && !isNaN(contactData.id)) {
-            results.push(contactData);
+            // Sanitize contact data before adding
+            const sanitizedData = sanitizeContactData(contactData);
+            results.push({ ...contactData, ...sanitizedData });
           }
         })
         .on('end', () => {

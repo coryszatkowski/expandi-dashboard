@@ -9,6 +9,8 @@ const Profile = require('../models/Profile');
 const Campaign = require('../models/Campaign');
 const Event = require('../models/Event');
 const Contact = require('../models/Contact');
+const { getDatabase } = require('../config/database');
+const { sanitizeText } = require('../utils/sanitizer');
 
 class WebhookProcessor {
   /**
@@ -117,17 +119,20 @@ class WebhookProcessor {
       throw new Error('Missing contact ID in webhook payload');
     }
 
-    // Find or create contact
-    const contact = Contact.findOrCreate({
+    // Sanitize contact data from webhook
+    const sanitizedData = {
       contact_id: contactData.id,
-      first_name: contactData.first_name,
-      last_name: contactData.last_name,
-      company_name: contactData.company?.name || contactData.company_name,
-      job_title: contactData.job_title,
-      profile_link: contactData.profile_link || contactData.profile_link_public_identifier,
-      email: contactData.email,
-      phone: contactData.phone
-    });
+      first_name: sanitizeText(contactData.first_name || ''),
+      last_name: sanitizeText(contactData.last_name || ''),
+      company_name: sanitizeText(contactData.company?.name || contactData.company_name || ''),
+      job_title: sanitizeText(contactData.job_title || ''),
+      profile_link: sanitizeText(contactData.profile_link || contactData.profile_link_public_identifier || ''),
+      email: sanitizeText(contactData.email || ''),
+      phone: sanitizeText(contactData.phone || '')
+    };
+
+    // Find or create contact with sanitized data
+    const contact = Contact.findOrCreate(sanitizedData);
 
     return contact;
   }

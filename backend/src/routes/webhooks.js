@@ -26,33 +26,15 @@ global.webhookEvents = webhookEvents;
  * }
  */
 router.post('/expandi', async (req, res) => {
-  // RAW WEBHOOK LISTENER - Log EVERY request that hits this endpoint
-  const rawWebhookData = {
-    timestamp: new Date().toISOString(),
-    method: req.method,
-    url: req.url,
-    headers: {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent'],
-      'x-forwarded-for': req.headers['x-forwarded-for'],
-      'host': req.headers['host']
-    },
-    body: req.body,
-    bodySize: JSON.stringify(req.body).length,
-    ip: req.ip || req.connection.remoteAddress
-  };
-  
-  console.log('🔥 RAW WEBHOOK HIT:', rawWebhookData);
-
-  // Emit raw webhook event
-  webhookEvents.emit('rawWebhook', rawWebhookData);
+  // Minimal webhook logging for troubleshooting
+  console.log('📨 Webhook received:', {
+    event: req.body.hook?.event,
+    contact_id: req.body.contact?.id,
+    campaign: req.body.messenger?.campaign_instance,
+    timestamp: new Date().toISOString()
+  });
 
   try {
-    console.log('📨 Webhook received:', {
-      event: req.body.hook?.event,
-      contact_id: req.body.contact?.id,
-      campaign: req.body.messenger?.campaign_instance
-    });
 
     // Validate payload structure
     const validation = WebhookProcessor.validatePayload(req.body);

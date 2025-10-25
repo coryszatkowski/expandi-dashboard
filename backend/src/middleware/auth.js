@@ -4,22 +4,39 @@
  * Protects admin routes by checking for valid authentication.
  */
 
+const jwt = require('jsonwebtoken');
 const { getDatabase } = require('../config/database');
 
 /**
+ * Middleware to verify JWT token
+ */
+function verifyToken(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ 
+      success: false,
+      error: 'No token provided' 
+    });
+  }
+  
+  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, decoded) => {
+    if (err) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Invalid token' 
+      });
+    }
+    req.user = decoded;
+    next();
+  });
+}
+
+/**
  * Middleware to check if user is authenticated as admin
- * For now, this is a placeholder - in a real app you'd verify JWT tokens
  */
 function requireAuth(req, res, next) {
-  // In a real application, you would:
-  // 1. Check for JWT token in Authorization header
-  // 2. Verify token signature
-  // 3. Extract user info from token
-  // 4. Check if user has admin role
-  
-  // For this MVP, we'll let the frontend handle authentication
-  // and just ensure the route exists
-  next();
+  return verifyToken(req, res, next);
 }
 
 /**
@@ -27,8 +44,8 @@ function requireAuth(req, res, next) {
  * This would verify the user has admin privileges
  */
 function requireAdmin(req, res, next) {
-  // In a real application, you would check the user's role
-  // For now, we'll just pass through
+  // For now, all authenticated users are considered admins
+  // In the future, you could add role-based access control
   next();
 }
 

@@ -33,43 +33,34 @@ class BackfillService {
 
     console.log('🔄 Starting CSV backfill process:', {
       profileId,
-      filePath,
       skipExisting,
       updateExisting
     });
 
     try {
       // 1. Validate CSV file
-      console.log('📋 Step 1: Validating CSV structure...');
       const validation = await CSVParser.validateCSVStructure(filePath);
-      console.log('📋 CSV validation result:', validation);
       
       if (!validation.isValid) {
         throw new Error(`Invalid CSV structure. Missing columns: ${validation.missingColumns.join(', ')}`);
       }
 
       // 2. Parse CSV data
-      console.log('📊 Step 2: Parsing CSV data...');
       const contacts = await CSVParser.parseORIONLeadSheet(filePath);
-      console.log(`📊 Parsed ${contacts.length} contacts from CSV`);
       
       if (contacts.length === 0) {
         throw new Error('No valid contacts found in CSV file');
       }
 
       // 3. Verify profile exists
-      console.log('👤 Step 3: Verifying profile exists...');
       const profile = await Profile.findById(profileId);
-      console.log('👤 Profile lookup result:', profile ? `Found profile: ${profile.account_name}` : 'Profile not found');
       
       if (!profile) {
         throw new Error('Profile not found');
       }
 
       // 4. Group contacts by campaign
-      console.log('📁 Step 4: Grouping contacts by campaign...');
       const campaignGroups = this.groupContactsByCampaign(contacts);
-      console.log(`📁 Found ${Object.keys(campaignGroups).length} campaigns:`, Object.keys(campaignGroups));
 
       // 5. Process each campaign
       const results = {
@@ -88,10 +79,8 @@ class BackfillService {
       };
 
       for (const [campaignName, campaignContacts] of Object.entries(campaignGroups)) {
-        console.log(`🎯 Processing campaign: ${campaignName} with ${campaignContacts.length} contacts`);
         try {
           // Find or create campaign
-          console.log(`🔍 Looking for or creating campaign: ${campaignName}`);
           const campaign = await this.findOrCreateCampaign(profileId, campaignName, campaignContacts[0].invited_at);
           
           if (!campaign) {
@@ -100,8 +89,6 @@ class BackfillService {
             results.errors.push(`Campaign creation failed: ${campaignName}`);
             continue; // Skip this campaign entirely
           }
-          
-          console.log(`✅ Campaign result: Found/created campaign with ID: ${campaign.id}`);
           
           const campaignResult = {
             campaignName,

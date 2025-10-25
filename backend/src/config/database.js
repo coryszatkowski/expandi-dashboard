@@ -32,15 +32,15 @@ function initializeDatabase() {
     });
     
     // Test connection
-    pool.query('SELECT NOW()', (err) => {
+    pool.query('SELECT NOW()', async (err) => {
       if (err) {
         console.error('❌ PostgreSQL connection failed:', err);
         throw err;
       }
       console.log('✅ PostgreSQL connected');
+      await initializePostgreSQLSchema();
     });
     
-    initializePostgreSQLSchema();
     return pool;
   }
   
@@ -61,49 +61,87 @@ function initializeDatabase() {
 }
 
 /**
+ * Check if PostgreSQL schema already exists
+ */
+async function checkSchemaExists() {
+  try {
+    const result = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'companies'
+      );
+    `);
+    return result.rows[0].exists;
+  } catch (error) {
+    console.log('Schema check failed, assuming schema needs initialization');
+    return false;
+  }
+}
+
+/**
  * Initialize PostgreSQL schema from schema.sql file
  */
-function initializePostgreSQLSchema() {
-  const schemaPath = path.join(__dirname, '../../database/schema.sql');
-  if (!fs.existsSync(schemaPath)) {
-    throw new Error(`Schema file not found: ${schemaPath}`);
-  }
-  
-  let schema = fs.readFileSync(schemaPath, 'utf8');
-  
-  // Convert SQLite schema to PostgreSQL with proper type handling
-  schema = schema
-    // First, convert primary keys
-    .replace(/TEXT PRIMARY KEY/g, 'UUID PRIMARY KEY')
-    .replace(/INTEGER PRIMARY KEY/g, 'BIGINT PRIMARY KEY')
+async function initializePostgreSQLSchema() {
+  try {
+    // Check if schema already exists
+    const schemaExists = await checkSchemaExists();
+    if (schemaExists) {
+      console.log('✅ PostgreSQL schema already exists, skipping initialization');
+      return;
+    }
+
+    console.log('🔧 Initializing PostgreSQL schema...');
     
-    // Convert foreign key columns to UUID (must be done before general TEXT conversion)
-    .replace(/company_id TEXT/g, 'company_id UUID')
-    .replace(/profile_id TEXT/g, 'profile_id UUID')
-    .replace(/campaign_id TEXT/g, 'campaign_id UUID')
+    const schemaPath = path.join(__dirname, '../../database/schema.sql');
+    if (!fs.existsSync(schemaPath)) {
+      throw new Error(`Schema file not found: ${schemaPath}`);
+    }
     
-    // Convert other specific UUID fields (id columns that aren't PRIMARY KEY)
-    .replace(/share_token TEXT/g, 'share_token UUID')
-    .replace(/webhook_id TEXT/g, 'webhook_id UUID')
+    let schema = fs.readFileSync(schemaPath, 'utf8');
     
-    // Now convert remaining TEXT fields to VARCHAR
-    .replace(/TEXT NOT NULL/g, 'VARCHAR(255) NOT NULL')
-    .replace(/TEXT,/g, 'VARCHAR(255),')
-    .replace(/TEXT\)/g, 'VARCHAR(255))')
+    // Convert SQLite schema to PostgreSQL with proper type handling
+    schema = schema
+      // First, convert primary keys
+      .replace(/TEXT PRIMARY KEY/g, 'UUID PRIMARY KEY')
+      .replace(/INTEGER PRIMARY KEY/g, 'BIGINT PRIMARY KEY')
+      
+      // Convert foreign key columns to UUID (must be done before general TEXT conversion)
+      .replace(/company_id TEXT/g, 'company_id UUID')
+      .replace(/profile_id TEXT/g, 'profile_id UUID')
+      .replace(/campaign_id TEXT/g, 'campaign_id UUID')
+      
+      // Convert other specific UUID fields (id columns that aren't PRIMARY KEY)
+      .replace(/share_token TEXT/g, 'share_token UUID')
+      .replace(/webhook_id TEXT/g, 'webhook_id UUID')
+      
+      // Now convert remaining TEXT fields to VARCHAR
+      .replace(/TEXT NOT NULL/g, 'VARCHAR(255) NOT NULL')
+      .replace(/TEXT,/g, 'VARCHAR(255),')
+      .replace(/TEXT\)/g, 'VARCHAR(255))')
+      
+      // Convert INTEGER to BIGINT
+      .replace(/INTEGER/g, 'BIGINT')
+      
+      // Convert datetime functions
+      .replace(/datetime\('now'\)/g, 'NOW()');
     
-    // Convert INTEGER to BIGINT
-    .replace(/INTEGER/g, 'BIGINT')
+    // Execute schema with proper error handling
+    await pool.query(schema);
+    console.log('✅ PostgreSQL schema initialized');
     
-    // Convert datetime functions
-    .replace(/datetime\('now'\)/g, 'NOW()');
-  
-  pool.query(schema, (err) => {
-    if (err && !err.message.includes('already exists')) {
-      console.error('Error initializing PostgreSQL schema:', err);
+  } catch (err) {
+    // Check if it's a "already exists" error (which is OK)
+    if (err.message.includes('already exists') || 
+        err.code === '23505' || 
+        err.message.includes('duplicate key') ||
+        err.message.includes('pg_type_typname_nsp_index')) {
+      console.log('✅ PostgreSQL schema already exists, skipping initialization');
+    } else {
+      console.error('❌ Error initializing PostgreSQL schema:', err);
       throw err;
     }
-    console.log('✅ PostgreSQL schema initialized');
-  });
+  }
 }
 
 /**

@@ -6,8 +6,10 @@
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { getDatabase } = require('../config/database');
+const { verifyToken } = require('../middleware/auth');
 const router = express.Router();
 
 // ============================================================================
@@ -70,11 +72,21 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Create session (in a real app, you'd use JWT or proper sessions)
-    // For simplicity, we'll just return success and let frontend handle session
+    // Create JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        username: user.username,
+        iat: Math.floor(Date.now() / 1000) // issued at
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+
     res.json({
       success: true,
       message: 'Login successful',
+      token: token,
       user: {
         id: user.id,
         username: user.username
@@ -123,7 +135,7 @@ router.get('/verify', (req, res) => {
  * Change password for current admin
  * Body: { "currentPassword": "old", "newPassword": "new" }
  */
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', verifyToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -202,7 +214,7 @@ router.post('/change-password', async (req, res) => {
  * Add a new admin user
  * Body: { "username": "email", "password": "password" }
  */
-router.post('/add-admin', async (req, res) => {
+router.post('/add-admin', verifyToken, async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -289,7 +301,7 @@ router.post('/add-admin', async (req, res) => {
  * 
  * Get list of all admin users
  */
-router.get('/admins', async (req, res) => {
+router.get('/admins', verifyToken, async (req, res) => {
   try {
     const db = getDatabase();
     
