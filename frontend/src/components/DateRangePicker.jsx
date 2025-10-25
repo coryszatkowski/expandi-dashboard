@@ -188,10 +188,17 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
 
   // Get display text for current range
   const getDisplayText = () => {
-    if (!selectedRange) return 'Select date range';
+    if (!selectedRange || !selectedRange.start_date || !selectedRange.end_date) {
+      return 'Select date range';
+    }
     
     const startDate = new Date(selectedRange.start_date);
     const endDate = new Date(selectedRange.end_date);
+    
+    // Check if dates are valid
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return 'Select date range';
+    }
     
     if (isSameDay(startDate, endDate)) {
       return format(startDate, 'MMM d, yyyy');
@@ -238,19 +245,35 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               {recentlyUsed.length > 0 && (
                 <div className="mb-4">
                   <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Recently Used</h4>
-                  {recentlyUsed.map((range, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setSelectedRange(range);
-                        onFilter(range);
-                        setIsOpen(false);
-                      }}
-                      className="w-full text-left px-2 py-1 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-700 rounded"
-                    >
-                      {format(new Date(range.start_date), 'MMM d')} - {format(new Date(range.end_date), 'MMM d, yyyy')}
-                    </button>
-                  ))}
+                  {recentlyUsed.map((range, index) => {
+                    const startDate = new Date(range.start_date);
+                    const endDate = new Date(range.end_date);
+                    const isValidRange = !isNaN(startDate.getTime()) && !isNaN(endDate.getTime());
+                    
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          if (isValidRange) {
+                            setSelectedRange(range);
+                            onFilter(range);
+                            setIsOpen(false);
+                          }
+                        }}
+                        className={`w-full text-left px-2 py-1 text-sm rounded ${
+                          isValidRange 
+                            ? 'text-gray-700 hover:bg-primary-50 hover:text-primary-700' 
+                            : 'text-gray-400 cursor-not-allowed'
+                        }`}
+                        disabled={!isValidRange}
+                      >
+                        {isValidRange 
+                          ? `${format(startDate, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`
+                          : 'Invalid date range'
+                        }
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -390,14 +413,21 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
               </div>
 
               {/* Selected Range Display */}
-              {(tempStartDate && tempEndDate) || selectedRange ? (
+              {(tempStartDate && tempEndDate) || (selectedRange && selectedRange.start_date && selectedRange.end_date) ? (
                 <div className="mt-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
                   <div className="text-sm text-primary-800">
                     <strong>Selected:</strong> {
                       tempStartDate && tempEndDate 
                         ? `${format(tempStartDate, 'MMM d, yyyy')} - ${format(tempEndDate, 'MMM d, yyyy')}`
-                        : selectedRange 
-                          ? `${format(new Date(selectedRange.start_date), 'MMM d, yyyy')} - ${format(new Date(selectedRange.end_date), 'MMM d, yyyy')}`
+                        : selectedRange && selectedRange.start_date && selectedRange.end_date
+                          ? (() => {
+                              const startDate = new Date(selectedRange.start_date);
+                              const endDate = new Date(selectedRange.end_date);
+                              if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                                return 'Invalid date range';
+                              }
+                              return `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`;
+                            })()
                           : 'No range selected'
                     }
                   </div>
