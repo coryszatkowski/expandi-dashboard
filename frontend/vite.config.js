@@ -9,7 +9,9 @@ export default defineConfig({
     allowedHosts: [
       'localhost',
       'dashboard.theorionstrategy.com',
-      'api.dashboard.theorionstrategy.com'
+      'api.dashboard.theorionstrategy.com',
+      'frontend-dev-2abd.up.railway.app',
+      'backend-dev-e860.up.railway.app'
     ]
   },
   server: {
