@@ -239,12 +239,7 @@ class AnalyticsService {
    * @returns {Array} Timeline data points
    */
   static async getActivityTimeline(accountIds, options = {}) {
-    console.log('=== TIMELINE DEBUG START ===');
-    console.log('Input accountIds:', accountIds);
-    console.log('Input options:', options);
-    
     if (accountIds.length === 0) {
-      console.log('No accountIds provided - returning empty array');
       return [];
     }
 
@@ -254,22 +249,16 @@ class AnalyticsService {
       WHERE profile_id IN (${accountIds.map(() => '?').join(',')})
     `, accountIds);
     const campaignIds = campaigns.map(c => c.id);
-    
-    console.log('Found campaigns:', campaigns);
-    console.log('Campaign IDs:', campaignIds);
 
     if (campaignIds.length === 0) {
-      console.log('No campaigns found - returning empty array');
       return [];
     }
 
     // Build timeline-specific date filter
     const { whereClause, params } = this.buildDateFilter(options);
-    console.log('Generated whereClause:', whereClause);
-    console.log('Generated params:', params);
 
     // Get actual data from database
-    const query = `
+    const actualData = await db.selectAll(`
       SELECT 
         DATE(CASE 
           WHEN event_type = 'invite_sent' THEN invited_at
@@ -289,18 +278,10 @@ class AnalyticsService {
       END IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
-    `;
-    
-    console.log('Executing query:', query);
-    console.log('Query params:', [...campaignIds, ...params]);
-    
-    const actualData = await db.selectAll(query, [...campaignIds, ...params]);
-    console.log('Raw database results:', actualData);
+    `, [...campaignIds, ...params]);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
-      console.log('No date range - returning raw data');
-      console.log('=== TIMELINE DEBUG END ===');
       return actualData;
     }
 
@@ -308,15 +289,18 @@ class AnalyticsService {
     // Treat frontend dates as local dates (not UTC)
     const startDate = new Date(options.start_date + 'T00:00:00');
     const endDate = new Date(options.end_date + 'T23:59:59');
-    console.log('Generating complete range from:', startDate, 'to:', endDate);
-    
     const completeRange = [];
+    
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
       const dateString = format(currentDate, 'yyyy-MM-dd');
       
       // Find actual data for this date
-      const dayData = actualData.find(d => d.date === dateString);
+      // Convert database ISO timestamp to yyyy-MM-dd for comparison
+      const dayData = actualData.find(d => {
+        const dbDate = new Date(d.date).toISOString().split('T')[0];
+        return dbDate === dateString;
+      });
       
       completeRange.push({
         date: dateString,
@@ -328,8 +312,6 @@ class AnalyticsService {
       currentDate = addDays(currentDate, 1);
     }
 
-    console.log('Final complete range:', completeRange);
-    console.log('=== TIMELINE DEBUG END ===');
     return completeRange;
   }
 
@@ -381,7 +363,11 @@ class AnalyticsService {
       const dateString = format(currentDate, 'yyyy-MM-dd');
       
       // Find actual data for this date
-      const dayData = actualData.find(d => d.date === dateString);
+      // Convert database ISO timestamp to yyyy-MM-dd for comparison
+      const dayData = actualData.find(d => {
+        const dbDate = new Date(d.date).toISOString().split('T')[0];
+        return dbDate === dateString;
+      });
       
       completeRange.push({
         date: dateString,
