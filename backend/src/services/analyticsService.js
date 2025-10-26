@@ -239,7 +239,12 @@ class AnalyticsService {
    * @returns {Array} Timeline data points
    */
   static async getActivityTimeline(accountIds, options = {}) {
+    console.log('=== TIMELINE DEBUG START ===');
+    console.log('Input accountIds:', accountIds);
+    console.log('Input options:', options);
+    
     if (accountIds.length === 0) {
+      console.log('No accountIds provided - returning empty array');
       return [];
     }
 
@@ -249,16 +254,22 @@ class AnalyticsService {
       WHERE profile_id IN (${accountIds.map(() => '?').join(',')})
     `, accountIds);
     const campaignIds = campaigns.map(c => c.id);
+    
+    console.log('Found campaigns:', campaigns);
+    console.log('Campaign IDs:', campaignIds);
 
     if (campaignIds.length === 0) {
+      console.log('No campaigns found - returning empty array');
       return [];
     }
 
     // Build timeline-specific date filter
     const { whereClause, params } = this.buildDateFilter(options);
+    console.log('Generated whereClause:', whereClause);
+    console.log('Generated params:', params);
 
     // Get actual data from database
-    const actualData = await db.selectAll(`
+    const query = `
       SELECT 
         DATE(CASE 
           WHEN event_type = 'invite_sent' THEN invited_at
@@ -278,10 +289,18 @@ class AnalyticsService {
       END IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
-    `, [...campaignIds, ...params]);
+    `;
+    
+    console.log('Executing query:', query);
+    console.log('Query params:', [...campaignIds, ...params]);
+    
+    const actualData = await db.selectAll(query, [...campaignIds, ...params]);
+    console.log('Raw database results:', actualData);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
+      console.log('No date range - returning raw data');
+      console.log('=== TIMELINE DEBUG END ===');
       return actualData;
     }
 
@@ -289,8 +308,9 @@ class AnalyticsService {
     // Treat frontend dates as local dates (not UTC)
     const startDate = new Date(options.start_date + 'T00:00:00');
     const endDate = new Date(options.end_date + 'T23:59:59');
-    const completeRange = [];
+    console.log('Generating complete range from:', startDate, 'to:', endDate);
     
+    const completeRange = [];
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
       const dateString = format(currentDate, 'yyyy-MM-dd');
@@ -308,6 +328,8 @@ class AnalyticsService {
       currentDate = addDays(currentDate, 1);
     }
 
+    console.log('Final complete range:', completeRange);
+    console.log('=== TIMELINE DEBUG END ===');
     return completeRange;
   }
 
@@ -402,6 +424,9 @@ class AnalyticsService {
    * @returns {Object} { whereClause: string, params: array }
    */
   static buildDateFilter(options) {
+    console.log('=== BUILD DATE FILTER DEBUG ===');
+    console.log('Input options:', options);
+    
     const params = [];
     let whereClause = '';
 
@@ -409,6 +434,7 @@ class AnalyticsService {
       // Convert local date to UTC for database comparison
       const startOfDay = new Date(options.start_date + 'T00:00:00');
       const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      console.log('start_date:', options.start_date, '-> UTC:', startOfDayUTC);
       
       whereClause += ` AND (
         CASE 
@@ -424,6 +450,7 @@ class AnalyticsService {
       // Convert local date to UTC for database comparison  
       const endOfDay = new Date(options.end_date + 'T23:59:59');
       const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      console.log('end_date:', options.end_date, '-> UTC:', endOfDayUTC);
       
       whereClause += ` AND (
         CASE 
@@ -434,6 +461,10 @@ class AnalyticsService {
       ) <= ?`;
       params.push(endOfDayUTC);
     }
+
+    console.log('Final whereClause:', whereClause);
+    console.log('Final params:', params);
+    console.log('=== BUILD DATE FILTER DEBUG END ===');
 
     return { whereClause, params };
   }

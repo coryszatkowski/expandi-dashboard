@@ -3,12 +3,24 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { formatChartDate } from '../utils/timezone';
 
 const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) {
+  console.log('=== ACTIVITY CHART DEBUG ===');
+  console.log('Received data prop:', data);
+  console.log('Data type:', typeof data);
+  console.log('Data length:', data?.length);
+  console.log('Data sample:', data?.slice(0, 3));
+  
   // Format dates for display (memoized to prevent unnecessary recalculations)
-  const formattedData = useMemo(() => 
-    data.map(item => ({
+  const formattedData = useMemo(() => {
+    console.log('Formatting data...');
+    const result = data.map(item => ({
       ...item,
       displayDate: formatChartDate(item.date),
-    })), [data]);
+    }));
+    console.log('Formatted data:', result);
+    return result;
+  }, [data]);
+
+  console.log('=== ACTIVITY CHART DEBUG END ===');
 
   return (
     <div className="bg-white rounded-lg shadow p-6">

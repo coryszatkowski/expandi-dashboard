@@ -19,12 +19,17 @@ const AnalyticsService = require('../services/analyticsService');
  */
 router.get('/:shareToken', async (req, res) => {
   try {
+    console.log('=== DASHBOARD API DEBUG START ===');
     const { shareToken } = req.params;
+    console.log('Share token:', shareToken);
+    console.log('Query params:', req.query);
 
     // Find company by share token
     const company = await Company.findByShareToken(shareToken);
+    console.log('Found company:', company);
 
     if (!company) {
+      console.log('Company not found');
       return res.status(404).json({
         success: false,
         error: 'Dashboard not found'
@@ -39,11 +44,18 @@ router.get('/:shareToken', async (req, res) => {
     if (req.query.end_date) {
       options.end_date = req.query.end_date;
     }
+    console.log('Parsed options:', options);
 
     // Get dashboard data
+    console.log('Calling AnalyticsService.getCompanyDashboard...');
     const dashboard = await AnalyticsService.getCompanyDashboard(company.id, options);
+    console.log('Dashboard data received:', {
+      kpis: dashboard.kpis,
+      timeline: dashboard.timeline?.length || 0,
+      profiles: dashboard.profiles?.length || 0
+    });
 
-    res.json({
+    const response = {
       success: true,
       company: {
         name: company.name
@@ -51,7 +63,11 @@ router.get('/:shareToken', async (req, res) => {
       ...dashboard,
       linkedin_accounts: dashboard.profiles, // Frontend compatibility
       accounts: dashboard.profiles // Alternative frontend compatibility
-    });
+    };
+
+    console.log('Sending response with timeline length:', response.timeline?.length || 0);
+    console.log('=== DASHBOARD API DEBUG END ===');
+    res.json(response);
 
   } catch (error) {
     console.error('Error fetching dashboard:', error);
