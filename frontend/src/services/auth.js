@@ -4,7 +4,7 @@
  * Handles admin authentication and session management.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.dashboard.theorionstrategy.com';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://api.dashboard.theorionstrategy.com').replace(/\/$/, '');
 
 /**
  * Check if user is authenticated as admin
