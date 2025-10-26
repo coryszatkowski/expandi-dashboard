@@ -50,6 +50,7 @@ function requireAdmin(req, res, next) {
 }
 
 module.exports = {
+  verifyToken,
   requireAuth,
   requireAdmin
 };
