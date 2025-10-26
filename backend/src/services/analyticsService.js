@@ -260,14 +260,22 @@ class AnalyticsService {
     // Get actual data from database
     const actualData = await db.selectAll(`
       SELECT 
-        DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
+        DATE(CASE 
+          WHEN event_type = 'invite_sent' THEN invited_at
+          WHEN event_type = 'connection_accepted' THEN connected_at
+          WHEN event_type = 'contact_replied' THEN replied_at
+        END) as date,
         COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
         COUNT(DISTINCT CASE WHEN event_type = 'connection_accepted' THEN contact_id END) as connections,
         COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
       ${whereClause}
-      AND DATE(COALESCE(invited_at, connected_at, replied_at)) IS NOT NULL
+      AND CASE 
+        WHEN event_type = 'invite_sent' THEN invited_at
+        WHEN event_type = 'connection_accepted' THEN connected_at
+        WHEN event_type = 'contact_replied' THEN replied_at
+      END IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
     `, [...campaignIds, ...params]);
@@ -315,14 +323,22 @@ class AnalyticsService {
     // Get actual data from database
     const actualData = await db.selectAll(`
       SELECT 
-        DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
+        DATE(CASE 
+          WHEN event_type = 'invite_sent' THEN invited_at
+          WHEN event_type = 'connection_accepted' THEN connected_at
+          WHEN event_type = 'contact_replied' THEN replied_at
+        END) as date,
         COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
         COUNT(DISTINCT CASE WHEN event_type = 'connection_accepted' THEN contact_id END) as connections,
         COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
       FROM events
       WHERE campaign_id = ?
       ${whereClause}
-      AND DATE(COALESCE(invited_at, connected_at, replied_at)) IS NOT NULL
+      AND CASE 
+        WHEN event_type = 'invite_sent' THEN invited_at
+        WHEN event_type = 'connection_accepted' THEN connected_at
+        WHEN event_type = 'contact_replied' THEN replied_at
+      END IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
     `, [campaignId, ...params]);
@@ -381,7 +397,7 @@ class AnalyticsService {
   }
 
   /**
-   * Build WHERE clause for date filtering (uses COALESCE date)
+   * Build WHERE clause for date filtering (uses event-type-specific timestamps)
    * @param {Object} options - Filter options with start_date and end_date
    * @returns {Object} { whereClause: string, params: array }
    */
@@ -393,7 +409,14 @@ class AnalyticsService {
       // Convert local date to UTC for database comparison
       const startOfDay = new Date(options.start_date + 'T00:00:00');
       const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      whereClause += ' AND COALESCE(invited_at, connected_at, replied_at) >= ?';
+      
+      whereClause += ` AND (
+        CASE 
+          WHEN event_type = 'invite_sent' THEN invited_at
+          WHEN event_type = 'connection_accepted' THEN connected_at
+          WHEN event_type = 'contact_replied' THEN replied_at
+        END
+      ) >= ?`;
       params.push(startOfDayUTC);
     }
 
@@ -401,7 +424,14 @@ class AnalyticsService {
       // Convert local date to UTC for database comparison  
       const endOfDay = new Date(options.end_date + 'T23:59:59');
       const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      whereClause += ' AND COALESCE(invited_at, connected_at, replied_at) <= ?';
+      
+      whereClause += ` AND (
+        CASE 
+          WHEN event_type = 'invite_sent' THEN invited_at
+          WHEN event_type = 'connection_accepted' THEN connected_at
+          WHEN event_type = 'contact_replied' THEN replied_at
+        END
+      ) <= ?`;
       params.push(endOfDayUTC);
     }
 
