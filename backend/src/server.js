@@ -10,6 +10,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { initializeDatabase, closeDatabase } = require('./config/database');
+const { migrateErrorHandling } = require('./config/migrateErrorHandling');
 const errorHandler = require('./middleware/errorHandler');
 const { 
   webhookLimiter, 
@@ -153,11 +154,15 @@ app.use(errorHandler);
 /**
  * Initialize database and start server
  */
-function startServer() {
+async function startServer() {
   try {
     // Initialize database
     console.log('🔧 Initializing database...');
     initializeDatabase();
+
+    // Run error handling migration
+    console.log('🔄 Running error handling migration...');
+    await migrateErrorHandling();
 
     // Start Express server
     app.listen(PORT, '0.0.0.0', () => {

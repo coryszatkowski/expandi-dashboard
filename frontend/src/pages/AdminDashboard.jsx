@@ -4,6 +4,7 @@ import { getCompanies, createCompany, updateCompany, deleteCompany, getLinkedInA
 import { logout, login, isAuthenticated } from '../services/auth';
 import SettingsModal from '../components/SettingsModal';
 import BackfillModal from '../components/BackfillModal';
+import ErrorNotificationBell from '../components/ErrorNotificationBell';
 import Header from '../components/Header';
 import { Plus, TrendingUp, Users, Briefcase, AlertCircle, ExternalLink, Edit, Trash2, Copy, Check, ArrowUpDown, LogOut, Lock, User, Settings, FileSpreadsheet } from 'lucide-react';
 
@@ -445,6 +446,7 @@ export default function AdminDashboard() {
           >
             Refresh Data
           </button>
+          <ErrorNotificationBell />
           <button
             onClick={() => setShowSettingsModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"

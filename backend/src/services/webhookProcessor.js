@@ -3,23 +3,71 @@
  * 
  * Handles incoming webhooks from Expandi and processes them into database records.
  * This is the core business logic for webhook ingestion.
+ * Enhanced with error handling, retry logic, and company-level contact deduplication.
  */
 
+const { v4: uuidv4 } = require('uuid');
 const Profile = require('../models/Profile');
 const Campaign = require('../models/Campaign');
 const Event = require('../models/Event');
 const Contact = require('../models/Contact');
+const FailedWebhookArchive = require('../models/FailedWebhookArchive');
+const ErrorNotification = require('../models/ErrorNotification');
 const { getDatabase } = require('../config/database');
 const { sanitizeText } = require('../utils/sanitizer');
 
 class WebhookProcessor {
   /**
-   * Process an Expandi webhook
+   * Process an Expandi webhook with error handling and retry logic
+   * @param {Object} payload - Raw webhook payload from Expandi
+   * @param {string} webhookId - Webhook ID from URL (required)
+   * @param {number} retryCount - Current retry attempt (default: 0)
+   * @returns {Object} Processing result with correlation_id
+   */
+  static async processWebhook(payload, webhookId, retryCount = 0) {
+    const correlationId = uuidv4();
+    
+    try {
+      console.log(`🔍 [${correlationId}] Starting webhook processing for webhookId: ${webhookId} (attempt ${retryCount + 1})`);
+      
+      // Check payload size (50KB limit)
+      const payloadSize = JSON.stringify(payload).length;
+      if (payloadSize > 50000) {
+        throw new Error(`Webhook payload too large: ${payloadSize} bytes (max 50KB)`);
+      }
+
+      // Process webhook using original logic
+      const result = await this.processWebhookOriginal(payload, webhookId);
+      
+      console.log(`✅ [${correlationId}] Webhook ${webhookId} processed successfully`);
+      
+      return {
+        ...result,
+        correlation_id: correlationId
+      };
+      
+    } catch (error) {
+      console.error(`❌ [${correlationId}] Webhook ${webhookId} failed (attempt ${retryCount + 1}):`, error.message);
+      
+      // Determine error severity
+      const severity = this.determineErrorSeverity(error, retryCount);
+      
+      // If this is the final attempt, archive the webhook and create notification
+      if (retryCount >= 2) { // 3 total attempts (0, 1, 2)
+        await this.handleFinalFailure(webhookId, payload, error, retryCount + 1, correlationId, severity);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Original webhook processing logic (unchanged)
    * @param {Object} payload - Raw webhook payload from Expandi
    * @param {string} webhookId - Webhook ID from URL (required)
    * @returns {Object} Processing result
    */
-  static async processWebhook(payload, webhookId) {
+  static async processWebhookOriginal(payload, webhookId) {
     try {
       console.log(`🔍 [DEBUG] Starting webhook processing for webhookId: ${webhookId}`);
       
@@ -56,16 +104,16 @@ class WebhookProcessor {
         throw new Error(`Failed to create or find campaign for profile ${profile.id}`);
       }
 
-      // 3. Find or create Contact
-      console.log(`🔍 [DEBUG] Processing contact with campaignId: ${campaign.id}`);
-      const contact = await this.processContact(contactData, campaign.id);
+      // 3. Find or create Contact with COMPANY-LEVEL DEDUPLICATION
+      console.log(`🔍 [DEBUG] Processing contact with campaignId: ${campaign.id}, companyId: ${profile.company_id}`);
+      const contact = await this.processContactWithCompanyDeduplication(contactData, campaign.id, profile.company_id);
       console.log(`🔍 [DEBUG] Contact result:`, contact ? { contact_id: contact.contact_id, first_name: contact.first_name, last_name: contact.last_name } : 'undefined');
       
       if (!contact) {
         throw new Error(`Failed to create or find contact for campaign ${campaign.id}`);
       }
 
-      // 4. Create/update Event
+      // 4. Create Event (NO DEDUPLICATION - process every webhook)
       console.log(`🔍 [DEBUG] Processing event for campaignId: ${campaign.id}, contactId: ${contact.contact_id}`);
       const event = await this.processEvent(hookEvent, messengerData, campaign.id, contact.contact_id, payload);
       console.log(`🔍 [DEBUG] Event result:`, event ? { id: event.id, event_type: event.event_type } : 'undefined');
@@ -73,8 +121,6 @@ class WebhookProcessor {
       if (!event) {
         throw new Error(`Failed to create event for campaign ${campaign.id} and contact ${contact.contact_id}`);
       }
-
-      // 5. Note: Real-time broadcasting handled separately to avoid circular dependencies
 
       return {
         success: true,
@@ -86,6 +132,68 @@ class WebhookProcessor {
     } catch (error) {
       console.error('Error processing webhook:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Determine error severity based on error type and retry count
+   * @param {Error} error - The error that occurred
+   * @param {number} retryCount - Current retry attempt
+   * @returns {string} Severity level (critical, error, warning)
+   */
+  static determineErrorSeverity(error, retryCount) {
+    const message = error.message.toLowerCase();
+    
+    // Critical errors that need immediate attention
+    if (message.includes('database') || message.includes('connection') || message.includes('timeout')) {
+      return 'critical';
+    }
+    
+    // Warnings for data issues that might be recoverable
+    if (message.includes('invalid') || message.includes('missing') || message.includes('not found')) {
+      return 'warning';
+    }
+    
+    // Default to error for other issues
+    return 'error';
+  }
+
+  /**
+   * Handle final failure after all retries exhausted
+   * @param {string} webhookId - Webhook ID
+   * @param {Object} payload - Original webhook payload
+   * @param {Error} error - The error that occurred
+   * @param {number} retryCount - Total number of retry attempts
+   * @param {string} correlationId - Correlation ID for tracing
+   * @param {string} severity - Error severity
+   */
+  static async handleFinalFailure(webhookId, payload, error, retryCount, correlationId, severity) {
+    try {
+      // Archive the failed webhook
+      await FailedWebhookArchive.create({
+        webhook_id: webhookId,
+        raw_payload: payload,
+        error_message: error.message,
+        retry_count: retryCount,
+        contact_id: payload.contact?.id || null,
+        campaign_instance: payload.messenger?.campaign_instance || null,
+        correlation_id: correlationId,
+        severity: severity
+      });
+
+      // Create error notification for admin dashboard
+      await ErrorNotification.create({
+        notification_type: 'webhook_failed',
+        message: `Webhook ${webhookId} failed after ${retryCount} attempts: ${error.message}`,
+        webhook_id: webhookId,
+        correlation_id: correlationId,
+        severity: severity
+      });
+
+      console.log(`📦 [${correlationId}] Webhook ${webhookId} archived after ${retryCount} failed attempts`);
+      
+    } catch (archiveError) {
+      console.error(`❌ [${correlationId}] Failed to archive webhook:`, archiveError);
     }
   }
 
@@ -142,9 +250,43 @@ class WebhookProcessor {
   }
 
   /**
-   * Process Contact from webhook data
+   * Process Contact from webhook data with company-level deduplication
    * @param {Object} contactData - Contact data from webhook
+   * @param {string} campaignId - Campaign UUID
+   * @param {string} companyId - Company UUID
    * @returns {Object} Contact
+   */
+  static async processContactWithCompanyDeduplication(contactData, campaignId, companyId) {
+    if (!contactData.id) {
+      throw new Error('Missing contact ID in webhook payload');
+    }
+
+    // Sanitize contact data from webhook
+    const sanitizedData = {
+      contact_id: contactData.id,
+      campaign_id: campaignId,
+      company_id: companyId, // Add company_id for deduplication
+      first_name: sanitizeText(contactData.first_name || ''),
+      last_name: sanitizeText(contactData.last_name || ''),
+      company_name: sanitizeText(contactData.company?.name || contactData.company_name || ''),
+      job_title: sanitizeText(contactData.job_title || ''),
+      profile_link: sanitizeText(contactData.profile_link || contactData.profile_link_public_identifier || ''),
+      email: sanitizeText(contactData.email || ''),
+      phone: sanitizeText(contactData.phone || '')
+    };
+
+    // Use enhanced findOrCreate with company deduplication
+    const contact = await Contact.findOrCreateWithCompanyDeduplication(sanitizedData);
+
+    return contact;
+  }
+
+  /**
+   * Process Contact from webhook data (legacy method)
+   * @param {Object} contactData - Contact data from webhook
+   * @param {string} campaignId - Campaign UUID
+   * @returns {Object} Contact
+   * @deprecated Use processContactWithCompanyDeduplication for company-level deduplication
    */
   static async processContact(contactData, campaignId) {
     if (!contactData.id) {
@@ -171,7 +313,7 @@ class WebhookProcessor {
   }
 
   /**
-   * Process Event from webhook data
+   * Process Event from webhook data - REMOVED DEDUPLICATION
    * @param {string} hookEvent - Event type from webhook (e.g., "linked_in_messenger.campaign_new_contact")
    * @param {Object} messengerData - Messenger data from webhook
    * @param {string} campaignId - Campaign UUID
@@ -190,12 +332,8 @@ class WebhookProcessor {
       finalContactId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
     }
 
-    // Check for existing event to prevent duplicates (but allow retries after failures)
-    const existingEvent = await Event.findByContactCampaignAndType(campaignId, finalContactId, eventType);
-    if (existingEvent) {
-      console.log(`🔄 Duplicate webhook detected for contact ${finalContactId}, event type ${eventType}. Skipping.`);
-      return existingEvent;
-    }
+    // REMOVED: No more duplicate event checking
+    // Process every webhook event - this allows us to track all interactions
 
     // Extract timestamps based on event type
     const eventData = {
@@ -214,7 +352,7 @@ class WebhookProcessor {
       eventData.replied_at = fullPayload.hook?.fired_datetime || new Date().toISOString();
     }
 
-    // Create new event only if it doesn't already exist
+    // Create new event (no duplicate checking)
     const event = await Event.create(eventData);
     console.log(`✅ New event created: ${eventType} for contact ${finalContactId}`);
 

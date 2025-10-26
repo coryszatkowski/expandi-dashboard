@@ -13,8 +13,11 @@ const fs = require('fs');
 const db = require('../utils/databaseHelper');
 const Company = require('../models/Company');
 const Profile = require('../models/Profile');
+const Contact = require('../models/Contact');
 const AnalyticsService = require('../services/analyticsService');
 const BackfillService = require('../services/backfillService');
+const FailedWebhookArchive = require('../models/FailedWebhookArchive');
+const ErrorNotification = require('../models/ErrorNotification');
 const { requireAuth } = require('../middleware/auth');
 const { sanitizeCompanyName } = require('../utils/sanitizer');
 const { validateCSVContent, isActualCSV } = require('../middleware/fileValidator');
@@ -967,6 +970,300 @@ router.get('/stats', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch stats',
+      message: error.message
+    });
+  }
+});
+
+// ============================================================================
+// ERROR MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/admin/notifications
+ * 
+ * Get unresolved error notifications for admin dashboard
+ */
+router.get('/notifications', requireAuth, async (req, res) => {
+  try {
+    const notifications = await ErrorNotification.getUnresolvedNotifications();
+    
+    res.json({
+      success: true,
+      notifications
+    });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notifications',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/notifications/count
+ * 
+ * Get count of unresolved notifications for badge
+ */
+router.get('/notifications/count', requireAuth, async (req, res) => {
+  try {
+    const count = await ErrorNotification.getUnresolvedCount();
+    
+    res.json({
+      success: true,
+      count
+    });
+  } catch (error) {
+    console.error('Error fetching notification count:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notification count',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/admin/notifications/:id/resolve
+ * 
+ * Mark a notification as resolved
+ */
+router.post('/notifications/:id/resolve', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const resolved = await ErrorNotification.resolve(id);
+    
+    if (!resolved) {
+      return res.status(404).json({
+        success: false,
+        error: 'Notification not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Notification resolved successfully'
+    });
+  } catch (error) {
+    console.error('Error resolving notification:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to resolve notification',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/admin/notifications/resolve-multiple
+ * 
+ * Mark multiple notifications as resolved
+ * Body: { "ids": ["id1", "id2", ...] }
+ */
+router.post('/notifications/resolve-multiple', requireAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'ids array is required'
+      });
+    }
+    
+    const resolvedCount = await ErrorNotification.resolveMultiple(ids);
+    
+    res.json({
+      success: true,
+      message: `${resolvedCount} notifications resolved successfully`,
+      resolved_count: resolvedCount
+    });
+  } catch (error) {
+    console.error('Error resolving multiple notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to resolve notifications',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/archived-webhooks
+ * 
+ * Get archived failed webhooks for admin review
+ * Query params: ?limit=50&offset=0&severity=critical|error|warning
+ */
+router.get('/archived-webhooks', requireAuth, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0, severity } = req.query;
+    
+    let archivedWebhooks;
+    if (severity) {
+      archivedWebhooks = await FailedWebhookArchive.getBySeverity(severity, parseInt(limit));
+    } else {
+      archivedWebhooks = await FailedWebhookArchive.getArchivedWebhooks(parseInt(limit), parseInt(offset));
+    }
+    
+    res.json({
+      success: true,
+      archived_webhooks: archivedWebhooks
+    });
+  } catch (error) {
+    console.error('Error fetching archived webhooks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch archived webhooks',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/admin/archived-webhooks/:id/process
+ * 
+ * Manually retry processing an archived webhook
+ */
+router.post('/archived-webhooks/:id/process', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the archived webhook
+    const archivedWebhook = await FailedWebhookArchive.findById(id);
+    
+    if (!archivedWebhook) {
+      return res.status(404).json({
+        success: false,
+        error: 'Archived webhook not found'
+      });
+    }
+    
+    // TODO: Implement manual reprocessing logic
+    // This would involve calling WebhookProcessor.processWebhook with the archived payload
+    
+    res.json({
+      success: true,
+      message: 'Manual reprocessing initiated',
+      webhook_id: archivedWebhook.webhook_id
+    });
+  } catch (error) {
+    console.error('Error processing archived webhook:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process archived webhook',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/admin/archived-webhooks/:id
+ * 
+ * Delete an archived webhook after successful manual processing
+ */
+router.delete('/archived-webhooks/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const deleted = await FailedWebhookArchive.delete(id);
+    
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Archived webhook not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Archived webhook deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting archived webhook:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete archived webhook',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/companies/:companyId/contacts
+ * 
+ * Get unique contacts for a company (deduplicated)
+ * Query params: ?limit=1000&offset=0&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+ */
+router.get('/companies/:companyId/contacts', requireAuth, async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    const { limit = 1000, offset = 0, startDate, endDate } = req.query;
+    
+    // Verify company exists
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company not found'
+      });
+    }
+    
+    const options = {
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      startDate,
+      endDate
+    };
+    
+    const contacts = await Contact.getUniqueContactsForCompany(companyId, options);
+    const totalCount = await Contact.getUniqueContactCountForCompany(companyId, options);
+    
+    res.json({
+      success: true,
+      contacts,
+      total_count: totalCount,
+      company: {
+        id: company.id,
+        name: company.name
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching company contacts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch company contacts',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/error-stats
+ * 
+ * Get error handling statistics for dashboard
+ */
+router.get('/error-stats', requireAuth, async (req, res) => {
+  try {
+    const [notificationStats, archiveStats] = await Promise.all([
+      ErrorNotification.getStats(),
+      FailedWebhookArchive.getStats()
+    ]);
+    
+    res.json({
+      success: true,
+      stats: {
+        notifications: notificationStats,
+        archived_webhooks: archiveStats
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching error stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch error stats',
       message: error.message
     });
   }

@@ -26,6 +26,7 @@ global.webhookEvents = webhookEvents;
  */
 router.post('/expandi/account/:webhookId', async (req, res) => {
   const { webhookId } = req.params;
+  const maxRetries = 3;
   
   // RAW WEBHOOK LISTENER - Log EVERY request that hits this endpoint
   const rawWebhookData = {
@@ -55,12 +56,6 @@ router.post('/expandi/account/:webhookId', async (req, res) => {
   webhookEvents.emit('rawWebhook', rawWebhookData);
 
   try {
-    console.log(`📨 Webhook received for webhook ${webhookId}:`, {
-      event: req.body.hook?.event,
-      contact_id: req.body.contact?.id,
-      campaign: req.body.messenger?.campaign_instance
-    });
-
     // Validate payload structure
     const validation = WebhookProcessor.validatePayload(req.body);
     
@@ -73,52 +68,91 @@ router.post('/expandi/account/:webhookId', async (req, res) => {
       });
     }
 
-    // Process webhook (pass the webhook ID from the URL)
-    const result = await WebhookProcessor.processWebhook(req.body, webhookId);
-
-    console.log(`✅ Webhook processed successfully for webhook ${webhookId}:`, {
-      profile: result.profile.account_name,
-      campaign: result.campaign.campaign_name,
-      contact: `${result.contact.first_name} ${result.contact.last_name}`,
-      event: result.event.event_type
-    });
-
-    // Broadcast processed webhook to frontend
-    const webhookData = {
-      id: result.event.id,
-      event_type: result.event.event_type,
-      created_at: result.event.created_at,
-      invited_at: result.event.invited_at,
-      connected_at: result.event.connected_at,
-      replied_at: result.event.replied_at,
-      conversation_status: result.event.conversation_status,
-      campaign_name: result.campaign.campaign_name,
-      campaign_instance: result.campaign.campaign_instance,
-      account_name: result.profile.account_name,
-      webhook_id: result.profile.webhook_id,
-      company_name: result.profile.company_id ? 'Assigned' : null,
-      expandi_event: req.body.hook?.event,
-      contact_first_name: result.contact.first_name,
-      contact_last_name: result.contact.last_name,
-      contact_company: result.contact.company_name
-    };
+    // Retry logic with exponential backoff
+    let lastError;
+    let result;
     
-    // Emit processed webhook event
-    webhookEvents.emit('processedWebhook', webhookData);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Processing webhook ${webhookId} (attempt ${attempt + 1}/${maxRetries})`);
+        
+        // Process webhook with retry count
+        result = await WebhookProcessor.processWebhook(req.body, webhookId, attempt);
 
-    res.status(200).json({
-      success: true,
-      message: 'Webhook processed successfully',
-      data: {
-        profile_id: result.profile.id,
-        campaign_id: result.campaign.id,
-        event_id: result.event.id,
-        webhook_id: webhookId
+        console.log(`✅ Webhook ${webhookId} processed successfully on attempt ${attempt + 1}:`, {
+          profile: result.profile.account_name,
+          campaign: result.campaign.campaign_name,
+          contact: `${result.contact.first_name} ${result.contact.last_name}`,
+          event: result.event.event_type,
+          correlation_id: result.correlation_id
+        });
+
+        // Broadcast processed webhook to frontend
+        const webhookData = {
+          id: result.event.id,
+          event_type: result.event.event_type,
+          created_at: result.event.created_at,
+          invited_at: result.event.invited_at,
+          connected_at: result.event.connected_at,
+          replied_at: result.event.replied_at,
+          conversation_status: result.event.conversation_status,
+          campaign_name: result.campaign.campaign_name,
+          campaign_instance: result.campaign.campaign_instance,
+          account_name: result.profile.account_name,
+          webhook_id: result.profile.webhook_id,
+          company_name: result.profile.company_id ? 'Assigned' : null,
+          expandi_event: req.body.hook?.event,
+          contact_first_name: result.contact.first_name,
+          contact_last_name: result.contact.last_name,
+          contact_company: result.contact.company_name,
+          correlation_id: result.correlation_id
+        };
+        
+        // Emit processed webhook event
+        webhookEvents.emit('processedWebhook', webhookData);
+
+        return res.status(200).json({
+          success: true,
+          message: 'Webhook processed successfully',
+          data: {
+            profile_id: result.profile.id,
+            campaign_id: result.campaign.id,
+            event_id: result.event.id,
+            webhook_id: webhookId,
+            correlation_id: result.correlation_id
+          }
+        });
+
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Webhook ${webhookId} attempt ${attempt + 1} failed:`, error.message);
+        
+        // If this is the last attempt, break out of the loop
+        if (attempt === maxRetries - 1) {
+          break;
+        }
+        
+        // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
+    }
+
+    // If we get here, all retries failed
+    console.error(`❌ Webhook ${webhookId} failed after ${maxRetries} attempts`);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Webhook processing failed after multiple attempts',
+      message: lastError.message,
+      webhook_id: webhookId,
+      archived: true,
+      retry_count: maxRetries
     });
 
   } catch (error) {
-    console.error(`❌ Error processing webhook for webhook ${webhookId}:`, error);
+    console.error(`❌ Unexpected error processing webhook ${webhookId}:`, error);
     
     res.status(500).json({
       success: false,

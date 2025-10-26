@@ -645,6 +645,42 @@ class AnalyticsService {
   }
 
   /**
+   * Get unique contacts for a company (deduplicated)
+   * @param {string} companyId - Company UUID
+   * @param {Object} options - Filter options
+   * @param {string} [options.startDate] - Filter contacts created after this date
+   * @param {string} [options.endDate] - Filter contacts created before this date
+   * @param {number} [options.limit] - Maximum number of contacts to return
+   * @param {number} [options.offset] - Number of contacts to skip
+   * @returns {Array} Array of unique contact records
+   */
+  static async getUniqueContactsForCompany(companyId, options = {}) {
+    try {
+      const contacts = await Contact.getUniqueContactsForCompany(companyId, options);
+      
+      // Apply additional filtering if needed
+      let filteredContacts = contacts;
+      
+      if (options.startDate) {
+        filteredContacts = filteredContacts.filter(contact => 
+          new Date(contact.created_at) >= new Date(options.startDate)
+        );
+      }
+      
+      if (options.endDate) {
+        filteredContacts = filteredContacts.filter(contact => 
+          new Date(contact.created_at) <= new Date(options.endDate)
+        );
+      }
+      
+      return filteredContacts;
+    } catch (error) {
+      console.error('Error getting unique contacts for company:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Generate CSV export for company dashboard
    * @param {string} companyId - Company UUID
    * @param {Object} options - Filter options
