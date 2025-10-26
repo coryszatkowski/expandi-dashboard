@@ -255,7 +255,7 @@ class AnalyticsService {
     }
 
     // Build timeline-specific date filter
-    const { timelineWhereClause, timelineParams } = this.buildTimelineDateFilter(options);
+    const { whereClause, params } = this.buildDateFilter(options);
 
     // Get actual data from database
     const actualData = await db.selectAll(`
@@ -266,11 +266,11 @@ class AnalyticsService {
         COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-      ${timelineWhereClause}
+      ${whereClause}
       AND DATE(COALESCE(invited_at, connected_at, replied_at)) IS NOT NULL
       GROUP BY date
       ORDER BY date ASC
-    `, [...campaignIds, ...timelineParams]);
+    `, [...campaignIds, ...params]);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
@@ -381,61 +381,11 @@ class AnalyticsService {
   }
 
   /**
-   * Build WHERE clause for date filtering
+   * Build WHERE clause for date filtering (uses COALESCE date)
    * @param {Object} options - Filter options with start_date and end_date
    * @returns {Object} { whereClause: string, params: array }
    */
   static buildDateFilter(options) {
-    const params = [];
-    let whereClause = '';
-
-    if (options.start_date && options.end_date && options.start_date === options.end_date) {
-      // Single day filter: check if any timestamp falls on this date
-      // Convert local date to UTC for database comparison
-      const startOfDay = new Date(options.start_date + 'T00:00:00');
-      const endOfDay = new Date(options.start_date + 'T23:59:59');
-      const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      
-      whereClause += ' AND (';
-      whereClause += '(invited_at >= ? AND invited_at <= ?) OR ';
-      whereClause += '(connected_at >= ? AND connected_at <= ?) OR ';
-      whereClause += '(replied_at >= ? AND replied_at <= ?)';
-      whereClause += ')';
-      
-      params.push(startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC);
-    } else {
-      // Date range filter: check if any timestamp falls within the range
-      if (options.start_date) {
-        // Convert local date to UTC for database comparison
-        const startOfDay = new Date(options.start_date + 'T00:00:00');
-        const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
-        whereClause += ' AND (invited_at IS NULL OR invited_at >= ?)';
-        whereClause += ' AND (connected_at IS NULL OR connected_at >= ?)';
-        whereClause += ' AND (replied_at IS NULL OR replied_at >= ?)';
-        params.push(startOfDayUTC, startOfDayUTC, startOfDayUTC);
-      }
-
-      if (options.end_date) {
-        // Convert local date to UTC for database comparison
-        const endOfDay = new Date(options.end_date + 'T23:59:59');
-        const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
-        whereClause += ' AND (invited_at IS NULL OR invited_at <= ?)';
-        whereClause += ' AND (connected_at IS NULL OR connected_at <= ?)';
-        whereClause += ' AND (replied_at IS NULL OR replied_at <= ?)';
-        params.push(endOfDayUTC, endOfDayUTC, endOfDayUTC);
-      }
-    }
-
-    return { whereClause, params };
-  }
-
-  /**
-   * Build WHERE clause for timeline date filtering (uses COALESCE date)
-   * @param {Object} options - Filter options with start_date and end_date
-   * @returns {Object} { timelineWhereClause: string, timelineParams: array }
-   */
-  static buildTimelineDateFilter(options) {
     const params = [];
     let whereClause = '';
 
@@ -455,7 +405,7 @@ class AnalyticsService {
       params.push(endOfDayUTC);
     }
 
-    return { timelineWhereClause: whereClause, timelineParams: params };
+    return { whereClause, params };
   }
 
   /**
