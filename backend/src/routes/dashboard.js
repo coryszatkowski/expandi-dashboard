@@ -64,6 +64,37 @@ router.get('/:shareToken', async (req, res) => {
 });
 
 /**
+ * GET /api/dashboard/:shareToken/earliest-date
+ * Get the earliest date with data for this dashboard
+ */
+router.get('/:shareToken/earliest-date', async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    
+    // Find company by share token
+    const company = await Company.findByShareToken(shareToken);
+    if (!company) {
+      return res.status(404).json({ success: false, error: 'Dashboard not found' });
+    }
+    
+    // Get earliest date for this company
+    const earliestDate = await AnalyticsService.getCompanyEarliestDataDate(company.id);
+    
+    res.json({
+      success: true,
+      earliest_date: earliestDate
+    });
+    
+  } catch (error) {
+    console.error('Error fetching earliest date:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch earliest date'
+    });
+  }
+});
+
+/**
  * Helper function to get profile dashboard data
  */
 async function getProfileDashboard(req, res, shareToken, profileId) {

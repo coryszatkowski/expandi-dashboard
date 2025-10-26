@@ -447,6 +447,64 @@ class AnalyticsService {
   }
 
   /**
+   * Get the earliest date with actual data for an account
+   * @param {string} accountId - Account UUID
+   * @returns {string|null} Earliest date with data in yyyy-MM-dd format, or null if no data
+   */
+  static async getEarliestDataDate(accountId) {
+    const campaigns = await db.selectAll(`
+      SELECT id FROM campaigns 
+      WHERE profile_id = ?
+    `, [accountId]);
+    
+    if (campaigns.length === 0) {
+      return null;
+    }
+    
+    const campaignIds = campaigns.map(c => c.id);
+    
+    const result = await db.selectOne(`
+      SELECT MIN(DATE(CASE 
+        WHEN event_type = 'invite_sent' THEN invited_at
+        WHEN event_type = 'connection_accepted' THEN connected_at
+        WHEN event_type = 'contact_replied' THEN replied_at
+      END)) as earliest_date
+      FROM events
+      WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
+      AND CASE 
+        WHEN event_type = 'invite_sent' THEN invited_at
+        WHEN event_type = 'connection_accepted' THEN connected_at
+        WHEN event_type = 'contact_replied' THEN replied_at
+      END IS NOT NULL
+    `, campaignIds);
+    
+    return result?.earliest_date || null;
+  }
+
+  /**
+   * Get the earliest date with actual data for a company (across all accounts)
+   * @param {string} companyId - Company UUID
+   * @returns {string|null} Earliest date with data in yyyy-MM-dd format, or null if no data
+   */
+  static async getCompanyEarliestDataDate(companyId) {
+    const profiles = await db.selectAll(`
+      SELECT id FROM profiles WHERE company_id = ?
+    `, [companyId]);
+    
+    if (profiles.length === 0) {
+      return null;
+    }
+    
+    // Find earliest date across all profiles
+    const earliestDates = await Promise.all(
+      profiles.map(profile => this.getEarliestDataDate(profile.id))
+    );
+    
+    const validDates = earliestDates.filter(date => date !== null);
+    return validDates.length > 0 ? validDates.sort()[0] : null;
+  }
+
+  /**
    * Return empty KPIs structure
    * @returns {Object} Empty KPIs
    */

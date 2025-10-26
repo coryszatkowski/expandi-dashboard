@@ -2,15 +2,33 @@ import React, { useState, useEffect, useRef } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, isSameDay, isWithinInterval, addDays, subDays as subDaysFn } from 'date-fns';
 import { ChevronDown, Calendar, X } from 'lucide-react';
 import { formatDateForBackend } from '../utils/timezone';
+import { getEarliestDataDate } from '../services/api';
 
-const DateRangePicker = ({ onFilter, initialRange = null }) => {
+const DateRangePicker = ({ onFilter, initialRange = null, shareToken }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedRange, setSelectedRange] = useState(initialRange);
+  const [earliestDate, setEarliestDate] = useState('2025-01-01'); // fallback
 
   // Update selectedRange when initialRange prop changes
   useEffect(() => {
     setSelectedRange(initialRange);
   }, [initialRange]);
+
+  // Fetch earliest date when shareToken is available
+  useEffect(() => {
+    if (shareToken) {
+      getEarliestDataDate(shareToken)
+        .then(data => {
+          if (data.success && data.earliest_date) {
+            setEarliestDate(data.earliest_date);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to fetch earliest date:', error);
+          // Keep fallback date
+        });
+    }
+  }, [shareToken]);
   const [tempStartDate, setTempStartDate] = useState(null);
   const [tempEndDate, setTempEndDate] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -96,7 +114,7 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
       return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Maximum', getRange: () => {
-      return { start_date: '2025-01-01', end_date: formatDateForBackend(new Date()) };
+      return { start_date: earliestDate, end_date: formatDateForBackend(new Date()) };
     }}
   ];
 

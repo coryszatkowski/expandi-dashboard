@@ -148,7 +148,7 @@ export default function AccountView() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date Filter */}
         <div className="mb-6">
-          <DateRangePicker onFilter={setFilters} initialRange={filters} />
+          <DateRangePicker onFilter={setFilters} initialRange={filters} shareToken={shareToken} />
         </div>
 
         {/* KPI Cards */}
