@@ -74,6 +74,18 @@ export const formatChartDate = (dateString, options = {}) => {
   if (!dateString) return null;
   
   try {
+    // If it's a yyyy-MM-dd string, treat it as local date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day); // Local date
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        ...options
+      }).format(date);
+    }
+    
+    // Otherwise, treat as ISO string
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return null;
     

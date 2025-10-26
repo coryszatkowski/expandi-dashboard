@@ -278,9 +278,9 @@ class AnalyticsService {
     }
 
     // Generate complete date range with zero values for days with no activity
-    // Use UTC to avoid timezone issues - treat dates as user's local dates
-    const startDate = new Date(options.start_date + 'T00:00:00Z');
-    const endDate = new Date(options.end_date + 'T23:59:59Z');
+    // Treat frontend dates as local dates (not UTC)
+    const startDate = new Date(options.start_date + 'T00:00:00');
+    const endDate = new Date(options.end_date + 'T23:59:59');
     const completeRange = [];
     
     let currentDate = new Date(startDate);
@@ -333,9 +333,9 @@ class AnalyticsService {
     }
 
     // Generate complete date range with zero values for days with no activity
-    // Use UTC to avoid timezone issues - treat dates as user's local dates
-    const startDate = new Date(options.start_date + 'T00:00:00Z');
-    const endDate = new Date(options.end_date + 'T23:59:59Z');
+    // Treat frontend dates as local dates (not UTC)
+    const startDate = new Date(options.start_date + 'T00:00:00');
+    const endDate = new Date(options.end_date + 'T23:59:59');
     const completeRange = [];
     
     let currentDate = new Date(startDate);
