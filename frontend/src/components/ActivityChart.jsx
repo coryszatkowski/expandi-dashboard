@@ -17,7 +17,11 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
         <LineChart data={formattedData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="displayDate" />
-          <YAxis />
+          <YAxis 
+            domain={[0, 'dataMax + 10']}
+            allowDecimals={false}
+            tickCount={6}
+          />
           <Tooltip />
           <Legend />
           <Line type="monotone" dataKey="invites" stroke="#3b82f6" name="Invites" />

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, isSameDay, isWithinInterval, addDays, subDays as subDaysFn } from 'date-fns';
 import { ChevronDown, Calendar, X } from 'lucide-react';
+import { formatDateForBackend } from '../utils/timezone';
 
 const DateRangePicker = ({ onFilter, initialRange = null }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,60 +43,60 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
   const presetRanges = [
     { label: 'Today', getRange: () => {
       const today = new Date();
-      return { start_date: format(today, 'yyyy-MM-dd'), end_date: format(today, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(today), end_date: formatDateForBackend(today) };
     }},
     { label: 'Yesterday', getRange: () => {
       const yesterday = subDays(new Date(), 1);
-      return { start_date: format(yesterday, 'yyyy-MM-dd'), end_date: format(yesterday, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(yesterday), end_date: formatDateForBackend(yesterday) };
     }},
     { label: 'Last 7 days', getRange: () => {
       const end = new Date();
       const start = subDays(end, 6);
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Last 14 days', getRange: () => {
       const end = new Date();
       const start = subDays(end, 13);
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Last 28 days', getRange: () => {
       const end = new Date();
       const start = subDays(end, 27);
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Last 30 days', getRange: () => {
       const end = new Date();
       const start = subDays(end, 29);
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'This week', getRange: () => {
       const now = new Date();
       const start = startOfWeek(now, { weekStartsOn: 1 }); // Monday
       const end = endOfWeek(now, { weekStartsOn: 1 });
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Last week', getRange: () => {
       const now = new Date();
       const lastWeek = subWeeks(now, 1);
       const start = startOfWeek(lastWeek, { weekStartsOn: 1 });
       const end = endOfWeek(lastWeek, { weekStartsOn: 1 });
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'This month', getRange: () => {
       const now = new Date();
       const start = startOfMonth(now);
       const end = endOfMonth(now);
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Last month', getRange: () => {
       const now = new Date();
       const lastMonth = subMonths(now, 1);
       const start = startOfMonth(lastMonth);
       const end = endOfMonth(lastMonth);
-      return { start_date: format(start, 'yyyy-MM-dd'), end_date: format(end, 'yyyy-MM-dd') };
+      return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Maximum', getRange: () => {
-      return { start_date: '2020-01-01', end_date: format(new Date(), 'yyyy-MM-dd') };
+      return { start_date: '2025-01-01', end_date: formatDateForBackend(new Date()) };
     }}
   ];
 
@@ -127,8 +128,8 @@ const DateRangePicker = ({ onFilter, initialRange = null }) => {
   const applyCustomRange = () => {
     if (tempStartDate && tempEndDate) {
       const range = {
-        start_date: format(tempStartDate, 'yyyy-MM-dd'),
-        end_date: format(tempEndDate, 'yyyy-MM-dd')
+        start_date: formatDateForBackend(tempStartDate),
+        end_date: formatDateForBackend(tempEndDate)
       };
       setSelectedRange(range);
       saveRecentlyUsed(range);

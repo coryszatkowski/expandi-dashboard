@@ -7,6 +7,8 @@ import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
 import { formatDateTime, formatDate } from '../utils/timezone';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2 } from 'lucide-react';
+import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
+import { formatDateForBackend } from '../utils/timezone';
 
 
 export default function CampaignView() {
@@ -17,7 +19,17 @@ export default function CampaignView() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({});
+  
+  // Calculate last month date range for initial load
+  const now = new Date();
+  const lastMonth = subMonths(now, 1);
+  const start = startOfMonth(lastMonth);
+  const end = endOfMonth(lastMonth);
+  
+  const [filters, setFilters] = useState({
+    start_date: formatDateForBackend(start),
+    end_date: formatDateForBackend(end)
+  });
   const [editMode, setEditMode] = useState(false);
   const [deletingContacts, setDeletingContacts] = useState(new Set());
 

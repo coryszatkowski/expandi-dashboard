@@ -144,3 +144,17 @@ export const toUTC = (localDate) => {
 export const fromUTC = (utcDateString) => {
   return new Date(utcDateString);
 };
+
+/**
+ * Format a local date for backend API calls
+ * Ensures date is treated as local midnight, returns yyyy-MM-dd format
+ * @param {Date} localDate - Local date object
+ * @returns {string} Date string in yyyy-MM-dd format
+ */
+export const formatDateForBackend = (localDate) => {
+  // Ensure date is treated as local midnight, return yyyy-MM-dd
+  const year = localDate.getFullYear();
+  const month = String(localDate.getMonth() + 1).padStart(2, '0');
+  const day = String(localDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};

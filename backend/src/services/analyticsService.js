@@ -406,13 +406,17 @@ class AnalyticsService {
       // Date range filter: check if any timestamp falls within the range
       if (options.start_date) {
         const startOfDay = `${options.start_date} 00:00:00`;
-        whereClause += ' AND (invited_at >= ? OR connected_at >= ? OR replied_at >= ?)';
+        whereClause += ' AND (invited_at IS NULL OR invited_at >= ?)';
+        whereClause += ' AND (connected_at IS NULL OR connected_at >= ?)';
+        whereClause += ' AND (replied_at IS NULL OR replied_at >= ?)';
         params.push(startOfDay, startOfDay, startOfDay);
       }
 
       if (options.end_date) {
         const endOfDay = `${options.end_date} 23:59:59`;
-        whereClause += ' AND (invited_at <= ? OR connected_at <= ? OR replied_at <= ?)';
+        whereClause += ' AND (invited_at IS NULL OR invited_at <= ?)';
+        whereClause += ' AND (connected_at IS NULL OR connected_at <= ?)';
+        whereClause += ' AND (replied_at IS NULL OR replied_at <= ?)';
         params.push(endOfDay, endOfDay, endOfDay);
       }
     }
