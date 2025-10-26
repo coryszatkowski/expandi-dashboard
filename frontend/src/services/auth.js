@@ -4,6 +4,8 @@
  * Handles admin authentication and session management.
  */
 
+import api from './api';
+
 const API_URL = (import.meta.env.VITE_API_URL || 'https://api.dashboard.theorionstrategy.com').replace(/\/$/, '');
 
 /**
@@ -141,9 +143,8 @@ export const addAdmin = async (username, password) => {
  */
 export const getAdmins = async () => {
   try {
-    const response = await fetch(`${API_URL}/api/auth/admins`);
-    const data = await response.json();
-    return data;
+    const response = await api.get('/api/auth/admins');
+    return response.data;
   } catch (error) {
     console.error('Get admins error:', error);
     return { success: false, error: 'Network error. Please try again.' };
