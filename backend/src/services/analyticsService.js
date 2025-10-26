@@ -414,8 +414,21 @@ class AnalyticsService {
     let whereClause = '';
 
     if (options.start_date) {
-      // Convert local date to UTC for database comparison
-      const startOfDay = new Date(options.start_date + 'T00:00:00');
+      // Handle both yyyy-MM-dd and ISO format dates
+      let startOfDay;
+      if (options.start_date.includes('T')) {
+        // Already an ISO date, use it directly
+        startOfDay = new Date(options.start_date);
+      } else {
+        // yyyy-MM-dd format, append time
+        startOfDay = new Date(options.start_date + 'T00:00:00');
+      }
+      
+      // Validate the date
+      if (isNaN(startOfDay.getTime())) {
+        throw new Error(`Invalid start_date: ${options.start_date}`);
+      }
+      
       const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
       
       whereClause += ` AND (
@@ -429,8 +442,21 @@ class AnalyticsService {
     }
 
     if (options.end_date) {
-      // Convert local date to UTC for database comparison  
-      const endOfDay = new Date(options.end_date + 'T23:59:59');
+      // Handle both yyyy-MM-dd and ISO format dates
+      let endOfDay;
+      if (options.end_date.includes('T')) {
+        // Already an ISO date, use it directly
+        endOfDay = new Date(options.end_date);
+      } else {
+        // yyyy-MM-dd format, append time
+        endOfDay = new Date(options.end_date + 'T23:59:59');
+      }
+      
+      // Validate the date
+      if (isNaN(endOfDay.getTime())) {
+        throw new Error(`Invalid end_date: ${options.end_date}`);
+      }
+      
       const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
       
       whereClause += ` AND (
