@@ -21,26 +21,58 @@ class WebhookProcessor {
    */
   static async processWebhook(payload, webhookId) {
     try {
+      console.log(`🔍 [DEBUG] Starting webhook processing for webhookId: ${webhookId}`);
+      
       // Extract key data from webhook
       const hookEvent = payload.hook?.event;
       const contactData = payload.contact;
       const messengerData = payload.messenger;
+
+      console.log(`🔍 [DEBUG] Extracted data:`, {
+        hookEvent,
+        contactId: contactData?.id,
+        campaignInstance: messengerData?.campaign_instance
+      });
 
       if (!contactData || !messengerData) {
         throw new Error('Invalid webhook payload: missing contact or messenger data');
       }
 
       // 1. Find Profile (webhook ID is the only source of truth)
+      console.log(`🔍 [DEBUG] Processing profile for webhookId: ${webhookId}`);
       const profile = this.processProfile(webhookId);
+      console.log(`🔍 [DEBUG] Profile result:`, profile ? { id: profile.id, account_name: profile.account_name } : 'undefined');
+      
+      if (!profile) {
+        throw new Error(`Profile with webhook_id ${webhookId} not found. Please create the profile first in the admin dashboard.`);
+      }
 
       // 2. Find or create Campaign
+      console.log(`🔍 [DEBUG] Processing campaign for profileId: ${profile.id}`);
       const campaign = this.processCampaign(messengerData, profile.id);
+      console.log(`🔍 [DEBUG] Campaign result:`, campaign ? { id: campaign.id, campaign_name: campaign.campaign_name } : 'undefined');
+      
+      if (!campaign) {
+        throw new Error(`Failed to create or find campaign for profile ${profile.id}`);
+      }
 
       // 3. Find or create Contact
+      console.log(`🔍 [DEBUG] Processing contact with campaignId: ${campaign.id}`);
       const contact = this.processContact(contactData, campaign.id);
+      console.log(`🔍 [DEBUG] Contact result:`, contact ? { contact_id: contact.contact_id, first_name: contact.first_name, last_name: contact.last_name } : 'undefined');
+      
+      if (!contact) {
+        throw new Error(`Failed to create or find contact for campaign ${campaign.id}`);
+      }
 
       // 4. Create/update Event
+      console.log(`🔍 [DEBUG] Processing event for campaignId: ${campaign.id}, contactId: ${contact.contact_id}`);
       const event = this.processEvent(hookEvent, messengerData, campaign.id, contact.contact_id, payload);
+      console.log(`🔍 [DEBUG] Event result:`, event ? { id: event.id, event_type: event.event_type } : 'undefined');
+      
+      if (!event) {
+        throw new Error(`Failed to create event for campaign ${campaign.id} and contact ${contact.contact_id}`);
+      }
 
       // 5. Note: Real-time broadcasting handled separately to avoid circular dependencies
 
@@ -158,7 +190,7 @@ class WebhookProcessor {
       finalContactId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
     }
 
-    // Check for existing event to prevent duplicates
+    // Check for existing event to prevent duplicates (but allow retries after failures)
     const existingEvent = Event.findByContactCampaignAndType(campaignId, finalContactId, eventType);
     if (existingEvent) {
       console.log(`🔄 Duplicate webhook detected for contact ${finalContactId}, event type ${eventType}. Skipping.`);
