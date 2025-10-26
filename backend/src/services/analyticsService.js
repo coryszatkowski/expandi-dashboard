@@ -391,9 +391,11 @@ class AnalyticsService {
 
     if (options.start_date && options.end_date && options.start_date === options.end_date) {
       // Single day filter: check if any timestamp falls on this date
-      // Use date range to capture the full day in any timezone
-      const startOfDay = `${options.start_date} 00:00:00`;
-      const endOfDay = `${options.start_date} 23:59:59`;
+      // Convert local date to UTC for database comparison
+      const startOfDay = new Date(options.start_date + 'T00:00:00');
+      const endOfDay = new Date(options.start_date + 'T23:59:59');
+      const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
       
       whereClause += ' AND (';
       whereClause += '(invited_at >= ? AND invited_at <= ?) OR ';
@@ -401,23 +403,27 @@ class AnalyticsService {
       whereClause += '(replied_at >= ? AND replied_at <= ?)';
       whereClause += ')';
       
-      params.push(startOfDay, endOfDay, startOfDay, endOfDay, startOfDay, endOfDay);
+      params.push(startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC);
     } else {
       // Date range filter: check if any timestamp falls within the range
       if (options.start_date) {
-        const startOfDay = `${options.start_date} 00:00:00`;
+        // Convert local date to UTC for database comparison
+        const startOfDay = new Date(options.start_date + 'T00:00:00');
+        const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
         whereClause += ' AND (invited_at IS NULL OR invited_at >= ?)';
         whereClause += ' AND (connected_at IS NULL OR connected_at >= ?)';
         whereClause += ' AND (replied_at IS NULL OR replied_at >= ?)';
-        params.push(startOfDay, startOfDay, startOfDay);
+        params.push(startOfDayUTC, startOfDayUTC, startOfDayUTC);
       }
 
       if (options.end_date) {
-        const endOfDay = `${options.end_date} 23:59:59`;
+        // Convert local date to UTC for database comparison
+        const endOfDay = new Date(options.end_date + 'T23:59:59');
+        const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
         whereClause += ' AND (invited_at IS NULL OR invited_at <= ?)';
         whereClause += ' AND (connected_at IS NULL OR connected_at <= ?)';
         whereClause += ' AND (replied_at IS NULL OR replied_at <= ?)';
-        params.push(endOfDay, endOfDay, endOfDay);
+        params.push(endOfDayUTC, endOfDayUTC, endOfDayUTC);
       }
     }
 
@@ -434,15 +440,19 @@ class AnalyticsService {
     let whereClause = '';
 
     if (options.start_date) {
-      const startOfDay = `${options.start_date} 00:00:00`;
+      // Convert local date to UTC for database comparison
+      const startOfDay = new Date(options.start_date + 'T00:00:00');
+      const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
       whereClause += ' AND COALESCE(invited_at, connected_at, replied_at) >= ?';
-      params.push(startOfDay);
+      params.push(startOfDayUTC);
     }
 
     if (options.end_date) {
-      const endOfDay = `${options.end_date} 23:59:59`;
+      // Convert local date to UTC for database comparison  
+      const endOfDay = new Date(options.end_date + 'T23:59:59');
+      const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
       whereClause += ' AND COALESCE(invited_at, connected_at, replied_at) <= ?';
-      params.push(endOfDay);
+      params.push(endOfDayUTC);
     }
 
     return { timelineWhereClause: whereClause, timelineParams: params };
