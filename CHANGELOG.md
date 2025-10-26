@@ -15,21 +15,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AI Agent Guidelines** to prevent incorrect assumptions about production systems
 - **Troubleshooting protocol** for AI agents
 - **Clear rules** about when to investigate vs. when to ask for clarification
+- **Comprehensive Security Hardening Implementation** (January 26, 2025)
+  - JWT authentication with 7-day token expiry
+  - Admin route protection with JWT validation
+  - CORS security with domain whitelist
+  - Rate limiting on authentication endpoints (5 attempts per 15 min)
+  - Security headers using Helmet.js (HSTS, CSP, X-Frame-Options)
+  - Input sanitization for XSS protection using xss package
+  - Content-based CSV file validation
+  - Clean logging without sensitive data exposure
+  - Updated frontend dependencies (Vite 7.1.12, esbuild latest)
+- **Webhook Processing Fixes** (January 26, 2025)
+  - Fixed critical async/await bug in webhook processing
+  - Fixed PostgreSQL schema initialization error
+  - Fixed duplicate webhook processing issue
+  - Added comprehensive debugging logs for webhook troubleshooting
+  - Fixed missing campaign_id in contact processing
 
 ### Changed
 - Updated README.md with current deployment status
 - Updated API endpoints documentation
 - Updated database status (SQLite → PostgreSQL migration completed)
 - **CORRECTED PRODUCTION URLs:**
-  - Backend: `https://api.dashboard.orionstrategy.com`
-  - Frontend: `https://dashboard.orionstrategy.com`
+  - Backend: `https://api.dashboard.theorionstrategy.com`
+  - Frontend: `https://dashboard.theorionstrategy.com`
 - **CLARIFIED DEPLOYMENT:** All services hosted on Railway (not Vercel)
 - **UPDATED DEVELOPMENT WORKFLOW:** Local development is fine, distinguish between local and production issues
+- **Security Hardening:** All 10 critical security vulnerabilities addressed
+- **Webhook Processing:** Now properly handles async database operations
 
 ### Fixed
 - Documentation now reflects actual implemented features vs planned features
 - Removed incorrect "DO NOT work locally" restrictions
 - Clarified that "server issues" refers to production, not localhost
+- **PostgreSQL Schema Error:** Server no longer crashes on startup
+- **JWT Authentication:** Login now returns tokens, admin routes are protected
+- **CORS Security:** Only authorized domains can make API requests
+- **Rate Limiting:** Auth endpoints protected from brute force attacks
+- **Webhook Processing:** Fixed async/await bugs causing undefined values
+- **File Validation:** CSV uploads now validate content, not just extension
+- **Dependency Vulnerabilities:** Updated Vite and esbuild to latest versions
 
 ## [1.0.0] - 2025-01-XX
 
