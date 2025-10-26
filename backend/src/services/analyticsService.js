@@ -424,9 +424,6 @@ class AnalyticsService {
    * @returns {Object} { whereClause: string, params: array }
    */
   static buildDateFilter(options) {
-    console.log('=== BUILD DATE FILTER DEBUG ===');
-    console.log('Input options:', options);
-    
     const params = [];
     let whereClause = '';
 
@@ -434,7 +431,6 @@ class AnalyticsService {
       // Convert local date to UTC for database comparison
       const startOfDay = new Date(options.start_date + 'T00:00:00');
       const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      console.log('start_date:', options.start_date, '-> UTC:', startOfDayUTC);
       
       whereClause += ` AND (
         CASE 
@@ -450,7 +446,6 @@ class AnalyticsService {
       // Convert local date to UTC for database comparison  
       const endOfDay = new Date(options.end_date + 'T23:59:59');
       const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      console.log('end_date:', options.end_date, '-> UTC:', endOfDayUTC);
       
       whereClause += ` AND (
         CASE 
@@ -461,10 +456,6 @@ class AnalyticsService {
       ) <= ?`;
       params.push(endOfDayUTC);
     }
-
-    console.log('Final whereClause:', whereClause);
-    console.log('Final params:', params);
-    console.log('=== BUILD DATE FILTER DEBUG END ===');
 
     return { whereClause, params };
   }
