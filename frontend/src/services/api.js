@@ -121,7 +121,7 @@ export const getCampaignDashboard = async (shareToken, campaignId, filters = {})
 };
 
 export const getEarliestDataDate = async (shareToken) => {
-  const response = await fetch(`${API_URL}/dashboard/${shareToken}/earliest-date`);
+  const response = await fetch(`${API_URL}/api/dashboard/${shareToken}/earliest-date`);
   if (!response.ok) {
     throw new Error('Failed to fetch earliest date');
   }
