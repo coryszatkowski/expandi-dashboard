@@ -131,7 +131,12 @@ router.post('/expandi/account/:webhookId', async (req, res) => {
     webhookId: webhookId
   };
   
-  console.log(`🔥 RAW WEBHOOK HIT (Webhook ${webhookId}):`, rawWebhookData);
+  // Minimal webhook logging for troubleshooting
+  console.log(`📨 Webhook received (${webhookId}):`, {
+    event: req.body.hook?.event,
+    contact_id: req.body.contact?.id,
+    campaign: req.body.messenger?.campaign_instance
+  });
 
   // Emit raw webhook event
   webhookEvents.emit('rawWebhook', rawWebhookData);

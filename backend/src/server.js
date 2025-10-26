@@ -30,6 +30,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
+// Trust proxy for Railway deployment (fixes rate limiting X-Forwarded-For error)
+app.set('trust proxy', 1);
+
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================

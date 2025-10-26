@@ -37,7 +37,7 @@ class WebhookProcessor {
       const campaign = this.processCampaign(messengerData, profile.id);
 
       // 3. Find or create Contact
-      const contact = this.processContact(contactData);
+      const contact = this.processContact(contactData, campaign.id);
 
       // 4. Create/update Event
       const event = this.processEvent(hookEvent, messengerData, campaign.id, contact.contact_id, payload);
@@ -114,7 +114,7 @@ class WebhookProcessor {
    * @param {Object} contactData - Contact data from webhook
    * @returns {Object} Contact
    */
-  static processContact(contactData) {
+  static processContact(contactData, campaignId) {
     if (!contactData.id) {
       throw new Error('Missing contact ID in webhook payload');
     }
@@ -122,6 +122,7 @@ class WebhookProcessor {
     // Sanitize contact data from webhook
     const sanitizedData = {
       contact_id: contactData.id,
+      campaign_id: campaignId, // Add campaign_id which is required by Contact model
       first_name: sanitizeText(contactData.first_name || ''),
       last_name: sanitizeText(contactData.last_name || ''),
       company_name: sanitizeText(contactData.company?.name || contactData.company_name || ''),
