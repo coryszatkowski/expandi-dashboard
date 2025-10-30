@@ -67,7 +67,18 @@ export const login = async (username, password) => {
       body: JSON.stringify({ username, password }),
     });
 
-    const data = await response.json();
+    // Robustly handle non-JSON responses (e.g., 404 HTML) to avoid JSON parse errors
+    const contentType = response.headers.get('content-type') || '';
+    let data;
+    if (contentType.includes('application/json')) {
+      try {
+        data = await response.json();
+      } catch (_e) {
+        return { success: false, error: `Login failed (${response.status})` };
+      }
+    } else {
+      return { success: false, error: `Login failed (${response.status})` };
+    }
 
     if (data.success) {
       // Store JWT token AND session
