@@ -122,6 +122,34 @@ async function copyData() {
       } else {
         console.log('✅ Dev database schema is up to date');
       }
+      
+      // Also check and update events table columns (VARCHAR(255) -> TEXT)
+      try {
+        const eventsCheck = await devPool.query(`
+          SELECT column_name, data_type, character_maximum_length
+          FROM information_schema.columns 
+          WHERE table_name = 'events' 
+          AND column_name IN ('event_type', 'event_data', 'conversation_status')
+        `);
+        
+        let eventsUpdated = false;
+        for (const col of eventsCheck.rows) {
+          if (col.data_type === 'character varying' && col.character_maximum_length === 255) {
+            console.log(`⚠️  Converting events.${col.column_name} from VARCHAR(255) to TEXT...`);
+            await devPool.query(`
+              ALTER TABLE events 
+              ALTER COLUMN ${col.column_name} TYPE TEXT
+            `);
+            eventsUpdated = true;
+          }
+        }
+        
+        if (eventsCheck.rows.length > 0 && !eventsUpdated) {
+          console.log('✅ Events table columns are up to date');
+        }
+      } catch (eventsError) {
+        console.log(`⚠️  Events schema check warning: ${eventsError.message}`);
+      }
     } catch (error) {
       console.log(`⚠️  Schema check warning: ${error.message}`);
       console.log('   Continuing with copy...');
