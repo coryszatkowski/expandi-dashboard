@@ -102,6 +102,18 @@ export const updateContactEvents = async (campaignId, contactId, data) => {
   return response.data;
 };
 
+// Admin: Get all contacts for a company
+export const getCompanyContacts = async (companyId, options = {}) => {
+  const params = new URLSearchParams({
+    limit: options.limit || 10000,
+    offset: options.offset || 0,
+    ...(options.startDate && { startDate: options.startDate }),
+    ...(options.endDate && { endDate: options.endDate })
+  });
+  const response = await api.get(`/api/admin/companies/${companyId}/contacts?${params}`);
+  return response.data;
+};
+
 // ========== DASHBOARD ENDPOINTS ==========
 
 export const getCompanyDashboard = async (shareToken, filters = {}) => {

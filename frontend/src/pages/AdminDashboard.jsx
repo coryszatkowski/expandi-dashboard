@@ -4,6 +4,7 @@ import { getCompanies, createCompany, updateCompany, deleteCompany, getLinkedInA
 import { logout, login, isAuthenticated } from '../services/auth';
 import SettingsModal from '../components/SettingsModal';
 import BackfillModal from '../components/BackfillModal';
+import CompanyContactsModal from '../components/CompanyContactsModal';
 import ErrorNotificationBell from '../components/ErrorNotificationBell';
 import Header from '../components/Header';
 import { Plus, TrendingUp, Users, Briefcase, AlertCircle, ExternalLink, Edit, Trash2, Copy, Check, ArrowUpDown, LogOut, Lock, User, Settings, FileSpreadsheet } from 'lucide-react';
@@ -24,6 +25,8 @@ export default function AdminDashboard() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showBackfillModal, setShowBackfillModal] = useState(false);
   const [backfillProfile, setBackfillProfile] = useState(null);
+  const [showContactsModal, setShowContactsModal] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [showNewCompanyModal, setShowNewCompanyModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [showEditCompanyModal, setShowEditCompanyModal] = useState(false);
@@ -201,6 +204,11 @@ export default function AdminDashboard() {
   const openBackfillModal = (account) => {
     setBackfillProfile(account);
     setShowBackfillModal(true);
+  };
+
+  const openContactsModal = (company) => {
+    setSelectedCompany({ id: company.id, name: company.name });
+    setShowContactsModal(true);
   };
 
   const closeAddLinkedInModal = () => {
@@ -576,6 +584,13 @@ export default function AdminDashboard() {
                         </button>
                       ) : (
                         <>
+                          <button
+                            onClick={() => openContactsModal(company)}
+                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 flex items-center gap-2"
+                          >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            View Contacts
+                          </button>
                           <button
                             onClick={() => openEditCompanyModal(company)}
                             className="px-4 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 flex items-center gap-2"
@@ -1014,6 +1029,19 @@ export default function AdminDashboard() {
           profileName={backfillProfile?.account_name}
           profiles={accounts}
         />
+
+        {/* Company Contacts Modal */}
+        {showContactsModal && selectedCompany && (
+          <CompanyContactsModal
+            isOpen={showContactsModal}
+            onClose={() => {
+              setShowContactsModal(false);
+              setSelectedCompany(null);
+            }}
+            companyId={selectedCompany.id}
+            companyName={selectedCompany.name}
+          />
+        )}
     </div>
   );
 }
