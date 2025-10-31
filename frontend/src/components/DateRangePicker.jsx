@@ -114,7 +114,11 @@ const DateRangePicker = ({ onFilter, initialRange = null, shareToken }) => {
       return { start_date: formatDateForBackend(start), end_date: formatDateForBackend(end) };
     }},
     { label: 'Maximum', getRange: () => {
-      return { start_date: earliestDate, end_date: formatDateForBackend(new Date()) };
+      // Use the fetched earliestDate, not hardcoded fallback
+      const start = earliestDate && earliestDate !== '2025-01-01' 
+        ? earliestDate 
+        : '2025-01-01'; // fallback only if fetch failed
+      return { start_date: start, end_date: formatDateForBackend(new Date()) };
     }}
   ];
 

@@ -254,31 +254,46 @@ class AnalyticsService {
       return [];
     }
 
-    // Build timeline-specific date filter
-    const { whereClause, params } = this.buildDateFilter(options);
+    // Build simpler date filter that checks any timestamp, not specific to event_type
+    let dateWhereClause = '';
+    const dateParams = [];
+    
+    if (options.start_date) {
+      const startOfDay = new Date(options.start_date + 'T00:00:00');
+      dateWhereClause += ` AND (
+        (invited_at IS NOT NULL AND invited_at >= ?) OR
+        (connected_at IS NOT NULL AND connected_at >= ?) OR
+        (replied_at IS NOT NULL AND replied_at >= ?)
+      )`;
+      const startUTC = startOfDay.toISOString();
+      dateParams.push(startUTC, startUTC, startUTC);
+    }
 
-    // Get actual data from database
+    if (options.end_date) {
+      const endOfDay = new Date(options.end_date + 'T23:59:59');
+      dateWhereClause += ` AND (
+        (invited_at IS NOT NULL AND invited_at <= ?) OR
+        (connected_at IS NOT NULL AND connected_at <= ?) OR
+        (replied_at IS NOT NULL AND replied_at <= ?)
+      )`;
+      const endUTC = endOfDay.toISOString();
+      dateParams.push(endUTC, endUTC, endUTC);
+    }
+
+    // Get actual data from database - count by date using the earliest non-null timestamp
     const actualData = await db.selectAll(`
       SELECT 
-        DATE(CASE 
-          WHEN event_type = 'invite_sent' THEN invited_at
-          WHEN event_type = 'connection_accepted' THEN connected_at
-          WHEN event_type = 'contact_replied' THEN replied_at
-        END) as date,
-        COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
-        COUNT(DISTINCT CASE WHEN event_type = 'connection_accepted' THEN contact_id END) as connections,
-        COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
+        DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
+        COUNT(DISTINCT CASE WHEN invited_at IS NOT NULL THEN contact_id END) as invites,
+        COUNT(DISTINCT CASE WHEN connected_at IS NOT NULL THEN contact_id END) as connections,
+        COUNT(DISTINCT CASE WHEN replied_at IS NOT NULL THEN contact_id END) as replies
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-      ${whereClause}
-      AND CASE 
-        WHEN event_type = 'invite_sent' THEN invited_at
-        WHEN event_type = 'connection_accepted' THEN connected_at
-        WHEN event_type = 'contact_replied' THEN replied_at
-      END IS NOT NULL
-      GROUP BY date
+      AND (invited_at IS NOT NULL OR connected_at IS NOT NULL OR replied_at IS NOT NULL)
+      ${dateWhereClause}
+      GROUP BY DATE(COALESCE(invited_at, connected_at, replied_at))
       ORDER BY date ASC
-    `, [...campaignIds, ...params]);
+    `, [...campaignIds, ...dateParams]);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
@@ -286,7 +301,6 @@ class AnalyticsService {
     }
 
     // Generate complete date range with zero values for days with no activity
-    // Treat frontend dates as local dates (not UTC)
     const startDate = new Date(options.start_date + 'T00:00:00');
     const endDate = new Date(options.end_date + 'T23:59:59');
     const completeRange = [];
@@ -296,17 +310,19 @@ class AnalyticsService {
       const dateString = format(currentDate, 'yyyy-MM-dd');
       
       // Find actual data for this date
-      // Convert database ISO timestamp to yyyy-MM-dd for comparison
       const dayData = actualData.find(d => {
-        const dbDate = new Date(d.date).toISOString().split('T')[0];
-        return dbDate === dateString;
+        // Handle both date string and Date object
+        const dbDateStr = typeof d.date === 'string' 
+          ? d.date 
+          : new Date(d.date).toISOString().split('T')[0];
+        return dbDateStr === dateString;
       });
       
       completeRange.push({
         date: dateString,
-        invites: dayData ? parseInt(dayData.invites) : 0,
-        connections: dayData ? parseInt(dayData.connections) : 0,
-        replies: dayData ? parseInt(dayData.replies) : 0
+        invites: dayData ? (parseInt(dayData.invites) || 0) : 0,
+        connections: dayData ? (parseInt(dayData.connections) || 0) : 0,
+        replies: dayData ? (parseInt(dayData.replies) || 0) : 0
       });
       
       currentDate = addDays(currentDate, 1);
@@ -322,30 +338,46 @@ class AnalyticsService {
    * @returns {Array} Timeline data points
    */
   static async getCampaignTimeline(campaignId, options = {}) {
-    const { whereClause, params } = this.buildDateFilter(options);
+    // Build simpler date filter
+    let dateWhereClause = '';
+    const dateParams = [];
+    
+    if (options.start_date) {
+      const startOfDay = new Date(options.start_date + 'T00:00:00');
+      dateWhereClause += ` AND (
+        (invited_at IS NOT NULL AND invited_at >= ?) OR
+        (connected_at IS NOT NULL AND connected_at >= ?) OR
+        (replied_at IS NOT NULL AND replied_at >= ?)
+      )`;
+      const startUTC = startOfDay.toISOString();
+      dateParams.push(startUTC, startUTC, startUTC);
+    }
+
+    if (options.end_date) {
+      const endOfDay = new Date(options.end_date + 'T23:59:59');
+      dateWhereClause += ` AND (
+        (invited_at IS NOT NULL AND invited_at <= ?) OR
+        (connected_at IS NOT NULL AND connected_at <= ?) OR
+        (replied_at IS NOT NULL AND replied_at <= ?)
+      )`;
+      const endUTC = endOfDay.toISOString();
+      dateParams.push(endUTC, endUTC, endUTC);
+    }
 
     // Get actual data from database
     const actualData = await db.selectAll(`
       SELECT 
-        DATE(CASE 
-          WHEN event_type = 'invite_sent' THEN invited_at
-          WHEN event_type = 'connection_accepted' THEN connected_at
-          WHEN event_type = 'contact_replied' THEN replied_at
-        END) as date,
-        COUNT(DISTINCT CASE WHEN event_type = 'invite_sent' THEN contact_id END) as invites,
-        COUNT(DISTINCT CASE WHEN event_type = 'connection_accepted' THEN contact_id END) as connections,
-        COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
+        DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
+        COUNT(DISTINCT CASE WHEN invited_at IS NOT NULL THEN contact_id END) as invites,
+        COUNT(DISTINCT CASE WHEN connected_at IS NOT NULL THEN contact_id END) as connections,
+        COUNT(DISTINCT CASE WHEN replied_at IS NOT NULL THEN contact_id END) as replies
       FROM events
       WHERE campaign_id = ?
-      ${whereClause}
-      AND CASE 
-        WHEN event_type = 'invite_sent' THEN invited_at
-        WHEN event_type = 'connection_accepted' THEN connected_at
-        WHEN event_type = 'contact_replied' THEN replied_at
-      END IS NOT NULL
-      GROUP BY date
+      AND (invited_at IS NOT NULL OR connected_at IS NOT NULL OR replied_at IS NOT NULL)
+      ${dateWhereClause}
+      GROUP BY DATE(COALESCE(invited_at, connected_at, replied_at))
       ORDER BY date ASC
-    `, [campaignId, ...params]);
+    `, [campaignId, ...dateParams]);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
@@ -489,22 +521,29 @@ class AnalyticsService {
     
     const campaignIds = campaigns.map(c => c.id);
     
+    // Find earliest date - check all timestamps, not just by event_type
+    // Use UNION to get all timestamps, then MIN (works for both SQLite and PostgreSQL)
     const result = await db.selectOne(`
-      SELECT MIN(DATE(CASE 
-        WHEN event_type = 'invite_sent' THEN invited_at
-        WHEN event_type = 'connection_accepted' THEN connected_at
-        WHEN event_type = 'contact_replied' THEN replied_at
-      END)) as earliest_date
-      FROM events
-      WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-      AND CASE 
-        WHEN event_type = 'invite_sent' THEN invited_at
-        WHEN event_type = 'connection_accepted' THEN connected_at
-        WHEN event_type = 'contact_replied' THEN replied_at
-      END IS NOT NULL
-    `, campaignIds);
+      SELECT MIN(date_val) as earliest_date
+      FROM (
+        SELECT invited_at as date_val FROM events 
+        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND invited_at IS NOT NULL
+        UNION ALL
+        SELECT connected_at as date_val FROM events 
+        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND connected_at IS NOT NULL
+        UNION ALL
+        SELECT replied_at as date_val FROM events 
+        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND replied_at IS NOT NULL
+      ) all_dates
+    `, [...campaignIds, ...campaignIds, ...campaignIds]);
     
-    return result?.earliest_date || null;
+    if (result?.earliest_date) {
+      // Return as yyyy-MM-dd format
+      const date = new Date(result.earliest_date);
+      return format(date, 'yyyy-MM-dd');
+    }
+    
+    return null;
   }
 
   /**
@@ -514,20 +553,51 @@ class AnalyticsService {
    */
   static async getCompanyEarliestDataDate(companyId) {
     const profiles = await db.selectAll(`
-      SELECT id FROM profiles WHERE company_id = ?
+      SELECT id FROM profiles 
+      WHERE company_id = ? AND status = 'assigned'
     `, [companyId]);
     
     if (profiles.length === 0) {
       return null;
     }
     
-    // Find earliest date across all profiles
-    const earliestDates = await Promise.all(
-      profiles.map(profile => this.getEarliestDataDate(profile.id))
-    );
+    const profileIds = profiles.map(p => p.id);
     
-    const validDates = earliestDates.filter(date => date !== null);
-    return validDates.length > 0 ? validDates.sort()[0] : null;
+    // Get all campaigns for these profiles
+    const campaigns = await db.selectAll(`
+      SELECT id FROM campaigns 
+      WHERE profile_id IN (${profileIds.map(() => '?').join(',')})
+    `, profileIds);
+    
+    if (campaigns.length === 0) {
+      return null;
+    }
+    
+    const campaignIds = campaigns.map(c => c.id);
+    
+    // Find earliest date across all events - check all timestamps, not just by event_type
+    // Use UNION to get all timestamps, then MIN (works for both SQLite and PostgreSQL)
+    const result = await db.selectOne(`
+      SELECT MIN(date_val) as earliest_date
+      FROM (
+        SELECT invited_at as date_val FROM events 
+        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND invited_at IS NOT NULL
+        UNION ALL
+        SELECT connected_at as date_val FROM events 
+        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND connected_at IS NOT NULL
+        UNION ALL
+        SELECT replied_at as date_val FROM events 
+        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND replied_at IS NOT NULL
+      ) all_dates
+    `, [...campaignIds, ...campaignIds, ...campaignIds]);
+    
+    if (result?.earliest_date) {
+      // Return as yyyy-MM-dd format
+      const date = new Date(result.earliest_date);
+      return format(date, 'yyyy-MM-dd');
+    }
+    
+    return null;
   }
 
   /**
