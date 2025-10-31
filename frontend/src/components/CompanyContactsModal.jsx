@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, FileSpreadsheet, Download, Edit2, Save, XCircle } from 'lucide-react';
-import { getCompanyContacts, updateCompanyContact } from '../services/api';
+import { getCompanyContacts, updateCompanyContact, updateContactEvents } from '../services/api';
 import { formatDateTime } from '../utils/timezone';
 
 export default function CompanyContactsModal({ isOpen, onClose, companyId, companyName }) {
@@ -93,7 +93,12 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
       job_title: contact.job_title || '',
       email: contact.email || '',
       phone: contact.phone || '',
-      profile_link: contact.profile_link || ''
+      profile_link: contact.profile_link || '',
+      campaign_name: contact.campaign_name || '',
+      profile_name: contact.profile_name || '',
+      invited_at: contact.invited_at || null,
+      connected_at: contact.connected_at || null,
+      replied_at: contact.replied_at || null
     });
   };
 
@@ -105,28 +110,63 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
   const handleSave = async (contact) => {
     try {
       setSavingContact(`${contact.contact_id}-${contact.campaign_id}`);
-      const data = await updateCompanyContact(companyId, contact.contact_id, {
+      
+      // Update contact fields
+      const contactData = await updateCompanyContact(companyId, contact.contact_id, {
         campaign_id: contact.campaign_id,
-        ...editForm
+        first_name: editForm.first_name,
+        last_name: editForm.last_name,
+        company_name: editForm.company_name,
+        job_title: editForm.job_title,
+        email: editForm.email,
+        phone: editForm.phone,
+        profile_link: editForm.profile_link,
+        campaign_name: editForm.campaign_name,
+        profile_name: editForm.profile_name
       });
 
-      if (data.success) {
-        // Update the contact in the local state
-        setContacts(prevContacts =>
-          prevContacts.map(c =>
-            c.contact_id === contact.contact_id && c.campaign_id === contact.campaign_id
-              ? { ...c, ...editForm }
-              : c
-          )
-        );
-        setEditingContact(null);
-        setEditForm({});
-      } else {
-        alert('Failed to save contact: ' + (data.error || 'Unknown error'));
+      if (!contactData.success) {
+        throw new Error(contactData.error || 'Failed to update contact');
       }
+
+      // Update event timestamps if changed
+      const eventUpdates = {};
+      if (editForm.invited_at !== contact.invited_at) {
+        eventUpdates.invited = {
+          checked: !!editForm.invited_at,
+          at: editForm.invited_at || undefined
+        };
+      }
+      if (editForm.connected_at !== contact.connected_at) {
+        eventUpdates.connected = {
+          checked: !!editForm.connected_at,
+          at: editForm.connected_at || undefined
+        };
+      }
+      if (editForm.replied_at !== contact.replied_at) {
+        eventUpdates.replied = {
+          checked: !!editForm.replied_at,
+          at: editForm.replied_at || undefined
+        };
+      }
+
+      if (Object.keys(eventUpdates).length > 0) {
+        await updateContactEvents(contact.campaign_id, contact.contact_id, eventUpdates);
+      }
+
+      // Update the contact in the local state
+      setContacts(prevContacts =>
+        prevContacts.map(c =>
+          c.contact_id === contact.contact_id && c.campaign_id === contact.campaign_id
+            ? { ...c, ...editForm }
+            : c
+        )
+      );
+      setEditingContact(null);
+      setEditForm({});
     } catch (err) {
       console.error('Error saving contact:', err);
-      alert('Failed to save contact. Please try again.');
+      alert('Failed to save contact: ' + (err.message || 'Please try again.'));
     } finally {
       setSavingContact(null);
     }
@@ -175,7 +215,7 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-x-auto overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -185,7 +225,7 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
           ) : contacts.length === 0 ? (
             <div className="text-center text-gray-500 py-8">No contacts found</div>
           ) : (
-            <div className="overflow-x-auto">
+            <div>
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
@@ -300,61 +340,110 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
                           '-'
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.campaign_name || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.profile_name || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-center">
-                        <div className="flex flex-col items-center">
-                          {contact.invited_at ? (
-                            <>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
-                                ✓
-                              </span>
-                              <div className="text-xs text-gray-500">
-                                {formatDateTime(contact.invited_at)}
-                              </div>
-                            </>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              ✗
-                            </span>
-                          )}
-                        </div>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {editing ? (
+                          <input
+                            type="text"
+                            value={editForm.campaign_name || ''}
+                            onChange={(e) => updateEditForm('campaign_name', e.target.value)}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          contact.campaign_name || '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {editing ? (
+                          <input
+                            type="text"
+                            value={editForm.profile_name || ''}
+                            onChange={(e) => updateEditForm('profile_name', e.target.value)}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          contact.profile_name || '-'
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-center">
-                        <div className="flex flex-col items-center">
-                          {contact.connected_at ? (
-                            <>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
-                                ✓
+                        {editing ? (
+                          <input
+                            type="datetime-local"
+                            value={editForm.invited_at ? new Date(editForm.invited_at).toISOString().slice(0, 16) : ''}
+                            onChange={(e) => updateEditForm('invited_at', e.target.value ? new Date(e.target.value).toISOString() : null)}
+                            className="w-40 px-2 py-1 border border-gray-300 rounded text-xs"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            {contact.invited_at ? (
+                              <>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
+                                  ✓
+                                </span>
+                                <div className="text-xs text-gray-500">
+                                  {formatDateTime(contact.invited_at)}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                ✗
                               </span>
-                              <div className="text-xs text-gray-500">
-                                {formatDateTime(contact.connected_at)}
-                              </div>
-                            </>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              ✗
-                            </span>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-center">
-                        <div className="flex flex-col items-center">
-                          {contact.replied_at ? (
-                            <>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
-                                ✓
+                        {editing ? (
+                          <input
+                            type="datetime-local"
+                            value={editForm.connected_at ? new Date(editForm.connected_at).toISOString().slice(0, 16) : ''}
+                            onChange={(e) => updateEditForm('connected_at', e.target.value ? new Date(e.target.value).toISOString() : null)}
+                            className="w-40 px-2 py-1 border border-gray-300 rounded text-xs"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            {contact.connected_at ? (
+                              <>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
+                                  ✓
+                                </span>
+                                <div className="text-xs text-gray-500">
+                                  {formatDateTime(contact.connected_at)}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                ✗
                               </span>
-                              <div className="text-xs text-gray-500">
-                                {formatDateTime(contact.replied_at)}
-                              </div>
-                            </>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              ✗
-                            </span>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        {editing ? (
+                          <input
+                            type="datetime-local"
+                            value={editForm.replied_at ? new Date(editForm.replied_at).toISOString().slice(0, 16) : ''}
+                            onChange={(e) => updateEditForm('replied_at', e.target.value ? new Date(e.target.value).toISOString() : null)}
+                            className="w-40 px-2 py-1 border border-gray-300 rounded text-xs"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            {contact.replied_at ? (
+                              <>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
+                                  ✓
+                                </span>
+                                <div className="text-xs text-gray-500">
+                                  {formatDateTime(contact.replied_at)}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                ✗
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {contact.created_at ? formatDateTime(contact.created_at) : '-'}

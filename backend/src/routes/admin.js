@@ -13,6 +13,7 @@ const fs = require('fs');
 const db = require('../utils/databaseHelper');
 const Company = require('../models/Company');
 const Profile = require('../models/Profile');
+const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
 const AnalyticsService = require('../services/analyticsService');
 const BackfillService = require('../services/backfillService');
@@ -1244,12 +1245,12 @@ router.get('/companies/:companyId/contacts', requireAuth, async (req, res) => {
  * PUT /api/admin/companies/:companyId/contacts/:contactId
  * 
  * Update contact information for a specific contact in a campaign
- * Body: { campaign_id, first_name, last_name, company_name, job_title, email, phone, profile_link }
+ * Body: { campaign_id, first_name, last_name, company_name, job_title, email, phone, profile_link, campaign_name, profile_name }
  */
 router.put('/companies/:companyId/contacts/:contactId', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { companyId, contactId } = req.params;
-    const { campaign_id, ...contactData } = req.body;
+    const { campaign_id, campaign_name, profile_name, ...contactData } = req.body;
 
     if (!campaign_id) {
       return res.status(400).json({
@@ -1276,9 +1277,9 @@ router.put('/companies/:companyId/contacts/:contactId', requireAuth, requireAdmi
       });
     }
 
-    // Verify campaign belongs to company
+    // Verify campaign belongs to company and get full campaign data
     const campaign = await db.selectOne(
-      'SELECT id FROM campaigns WHERE id = ? AND profile_id IN (SELECT id FROM profiles WHERE company_id = ?)',
+      'SELECT id, profile_id FROM campaigns WHERE id = ? AND profile_id IN (SELECT id FROM profiles WHERE company_id = ?)',
       [campaign_id, companyId]
     );
 
@@ -1291,6 +1292,16 @@ router.put('/companies/:companyId/contacts/:contactId', requireAuth, requireAdmi
 
     // Update contact
     const updated = await Contact.update(parseInt(contactId, 10), campaign_id, contactData);
+
+    // Update campaign name if provided
+    if (campaign_name !== undefined) {
+      await Campaign.update(campaign_id, { campaign_name });
+    }
+
+    // Update profile name if provided
+    if (profile_name !== undefined && campaign.profile_id) {
+      await Profile.update(campaign.profile_id, { account_name: profile_name });
+    }
 
     res.json({
       success: true,
