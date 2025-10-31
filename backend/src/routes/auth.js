@@ -209,12 +209,9 @@ router.post('/change-password', verifyToken, async (req, res) => {
 });
 
 /**
- * POST /api/auth/add-admin
- * 
- * Add a new admin user
- * Body: { "username": "email", "password": "password" }
+ * Helper function to handle admin creation logic
  */
-router.post('/add-admin', verifyToken, async (req, res) => {
+async function handleAddAdmin(req, res) {
   try {
     const { username, password } = req.body;
 
@@ -291,6 +288,50 @@ router.post('/add-admin', verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to add admin',
+      message: error.message
+    });
+  }
+}
+
+/**
+ * POST /api/auth/add-admin
+ * 
+ * Add a new admin user
+ * Body: { "username": "email", "password": "password" }
+ * 
+ * SECURITY: Allows bootstrap (no auth) if no admins exist yet.
+ * Once at least one admin exists, requires authentication token.
+ */
+router.post('/add-admin', async (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    // Check if any admins exist - if yes, require auth; if no, allow bootstrap
+    let adminCount = 0;
+    if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+      const result = await db.query('SELECT COUNT(*)::int AS count FROM admin_users');
+      adminCount = result.rows[0]?.count || 0;
+    } else {
+      const result = db.prepare('SELECT COUNT(*) AS count FROM admin_users').get();
+      adminCount = result?.count || 0;
+    }
+    
+    // If admins exist, require authentication
+    if (adminCount > 0) {
+      // Use verifyToken middleware for existing admins
+      return verifyToken(req, res, async () => {
+        await handleAddAdmin(req, res);
+      });
+    }
+    
+    // Bootstrap mode: no admins exist yet, allow without auth
+    await handleAddAdmin(req, res);
+    
+  } catch (error) {
+    console.error('Add admin bootstrap check error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check admin status',
       message: error.message
     });
   }
