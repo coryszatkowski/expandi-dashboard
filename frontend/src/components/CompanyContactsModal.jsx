@@ -40,7 +40,7 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
   };
 
   const exportToCSV = () => {
-    const headers = ['Contact ID', 'First Name', 'Last Name', 'Company', 'Job Title', 'Email', 'Phone', 'Profile Link', 'Campaign', 'Profile', 'Created At'];
+    const headers = ['Contact ID', 'First Name', 'Last Name', 'Company', 'Job Title', 'Email', 'Phone', 'Profile Link', 'Campaign', 'Profile', 'Invited', 'Invited At', 'Connected', 'Connected At', 'Replied', 'Replied At', 'Created At'];
     const rows = contacts.map(contact => [
       contact.unique_contact_id || '',
       contact.first_name || '',
@@ -52,6 +52,12 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
       contact.profile_link || '',
       contact.campaign_name || '',
       contact.profile_name || '',
+      contact.invited_at ? 'Yes' : 'No',
+      contact.invited_at ? formatDateTime(contact.invited_at) : '',
+      contact.connected_at ? 'Yes' : 'No',
+      contact.connected_at ? formatDateTime(contact.connected_at) : '',
+      contact.replied_at ? 'Yes' : 'No',
+      contact.replied_at ? formatDateTime(contact.replied_at) : '',
       contact.created_at ? formatDateTime(contact.created_at) : ''
     ]);
 
@@ -131,6 +137,9 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile Link</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campaign</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Invited</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Connected</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Replied</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                   </tr>
                 </thead>
@@ -156,6 +165,60 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.campaign_name || '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.profile_name || '-'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <div className="flex flex-col items-center">
+                          {contact.invited_at ? (
+                            <>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
+                                ✓
+                              </span>
+                              <div className="text-xs text-gray-500">
+                                {formatDateTime(contact.invited_at)}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              ✗
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <div className="flex flex-col items-center">
+                          {contact.connected_at ? (
+                            <>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
+                                ✓
+                              </span>
+                              <div className="text-xs text-gray-500">
+                                {formatDateTime(contact.connected_at)}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              ✗
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <div className="flex flex-col items-center">
+                          {contact.replied_at ? (
+                            <>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mb-1">
+                                ✓
+                              </span>
+                              <div className="text-xs text-gray-500">
+                                {formatDateTime(contact.replied_at)}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              ✗
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {contact.created_at ? formatDateTime(contact.created_at) : '-'}
                       </td>

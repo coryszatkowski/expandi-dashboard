@@ -290,7 +290,43 @@ class Contact {
         c.created_at,
         c.linked_to_contact_id,
         camp.campaign_name,
-        p.account_name as profile_name
+        p.account_name as profile_name,
+        (
+          SELECT MAX(e.invited_at)
+          FROM events e
+          JOIN campaigns ec ON e.campaign_id = ec.id
+          JOIN profiles ep ON ec.profile_id = ep.id
+          WHERE e.contact_id = CASE 
+            WHEN c.linked_to_contact_id IS NOT NULL THEN c.linked_to_contact_id
+            ELSE c.contact_id
+          END
+          AND ep.company_id = ?
+          AND e.invited_at IS NOT NULL
+        ) as invited_at,
+        (
+          SELECT MAX(e.connected_at)
+          FROM events e
+          JOIN campaigns ec ON e.campaign_id = ec.id
+          JOIN profiles ep ON ec.profile_id = ep.id
+          WHERE e.contact_id = CASE 
+            WHEN c.linked_to_contact_id IS NOT NULL THEN c.linked_to_contact_id
+            ELSE c.contact_id
+          END
+          AND ep.company_id = ?
+          AND e.connected_at IS NOT NULL
+        ) as connected_at,
+        (
+          SELECT MAX(e.replied_at)
+          FROM events e
+          JOIN campaigns ec ON e.campaign_id = ec.id
+          JOIN profiles ep ON ec.profile_id = ep.id
+          WHERE e.contact_id = CASE 
+            WHEN c.linked_to_contact_id IS NOT NULL THEN c.linked_to_contact_id
+            ELSE c.contact_id
+          END
+          AND ep.company_id = ?
+          AND e.replied_at IS NOT NULL
+        ) as replied_at
       FROM contacts c
       JOIN campaigns camp ON c.campaign_id = camp.id
       JOIN profiles p ON camp.profile_id = p.id
@@ -298,6 +334,9 @@ class Contact {
       ORDER BY c.created_at DESC
       LIMIT ? OFFSET ?
     `;
+
+    // Add company_id three times for the subqueries
+    params.push(companyId, companyId, companyId);
 
     params.push(limit, offset);
     return await db.selectAll(query, params);
