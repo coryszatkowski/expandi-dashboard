@@ -55,6 +55,78 @@ async function copyData() {
     await devPool.query('SELECT NOW()');
     console.log('✅ Dev connected');
 
+    // Check and update dev schema if needed (especially contacts table)
+    console.log('\n🔍 Checking dev database schema...');
+    try {
+      const contactsCheck = await devPool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'contacts' AND column_name = 'campaign_id'
+      `);
+      
+      if (contactsCheck.rows.length === 0) {
+        console.log('⚠️  Dev database schema is outdated. Updating schema...');
+        
+        // Check if contacts table has any existing data
+        const contactsDataCheck = await devPool.query('SELECT COUNT(*)::int AS count FROM contacts');
+        const hasExistingData = contactsDataCheck.rows[0].count > 0;
+        
+        if (hasExistingData) {
+          console.log('⚠️  Dev contacts table has existing data. Clearing first...');
+          await devPool.query('TRUNCATE TABLE contacts CASCADE');
+        }
+        
+        // Add campaign_id column to contacts if it doesn't exist (allow NULL initially)
+        await devPool.query(`
+          ALTER TABLE contacts 
+          ADD COLUMN IF NOT EXISTS campaign_id UUID,
+          ADD COLUMN IF NOT EXISTS linked_to_contact_id INTEGER
+        `);
+        
+        // Update primary key if needed - drop old constraint first
+        try {
+          await devPool.query('ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_pkey');
+        } catch (e) {
+          // May not have a primary key constraint
+        }
+        
+        // Add new composite primary key
+        try {
+          await devPool.query(`
+            ALTER TABLE contacts 
+            ADD PRIMARY KEY (contact_id, campaign_id)
+          `);
+        } catch (e) {
+          // Primary key might already exist or there's existing NULL campaign_id
+          if (e.message.includes('null value')) {
+            // This means we have NULL campaign_id values - set them to a default or skip
+            console.log('⚠️  Found NULL campaign_id values. This should not happen after TRUNCATE.');
+          }
+        }
+        
+        // Add foreign key if campaigns table exists
+        try {
+          await devPool.query(`
+            ALTER TABLE contacts 
+            ADD CONSTRAINT fk_contacts_campaign 
+            FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+          `);
+        } catch (e) {
+          // Foreign key might already exist
+          if (!e.message.includes('already exists')) {
+            console.log(`⚠️  Foreign key creation: ${e.message}`);
+          }
+        }
+        
+        console.log('✅ Dev database schema updated');
+      } else {
+        console.log('✅ Dev database schema is up to date');
+      }
+    } catch (error) {
+      console.log(`⚠️  Schema check warning: ${error.message}`);
+      console.log('   Continuing with copy...');
+    }
+
     // Get production table counts
     console.log('\n📊 Checking production data...');
     const tables = [
