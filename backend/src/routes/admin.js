@@ -18,7 +18,7 @@ const AnalyticsService = require('../services/analyticsService');
 const BackfillService = require('../services/backfillService');
 const FailedWebhookArchive = require('../models/FailedWebhookArchive');
 const ErrorNotification = require('../models/ErrorNotification');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { sanitizeCompanyName } = require('../utils/sanitizer');
 const { validateCSVContent, isActualCSV } = require('../middleware/fileValidator');
 
@@ -1272,6 +1272,117 @@ router.get('/error-stats', requireAuth, async (req, res) => {
 // ============================================================================
 // WEBHOOK MONITORING (TEMPORARY)
 // ============================================================================
+
+// ============================================================================
+// CONTACT EVENT MANUAL EDIT (ADMIN ONLY)
+// ============================================================================
+
+/**
+ * PUT /api/admin/campaigns/:campaignId/contacts/:contactId/events
+ * 
+ * Upsert invited/connected/replied timestamps for a contact within a campaign.
+ * Body example:
+ * {
+ *   "invited": { "checked": true, "at": "2025-10-20T12:34:00Z" },
+ *   "connected": { "checked": false },
+ *   "replied": { "checked": true, "at": "2025-10-22T09:00:00Z" }
+ * }
+ */
+router.put('/campaigns/:campaignId/contacts/:contactId/events', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { campaignId, contactId } = req.params;
+    const { invited, connected, replied } = req.body || {};
+
+    // Basic input sanity: at least one field must be present
+    if (!invited && !connected && !replied) {
+      return res.status(400).json({ success: false, error: 'No updates provided' });
+    }
+
+    // Helper to coerce date strings to ISO or null
+    const toIsoOrNull = (value) => {
+      if (!value) return null;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString();
+    };
+
+    // Process each event type independently
+    const Event = require('../models/Event');
+    const updates = [];
+
+    // Invite
+    if (invited) {
+      const eventType = 'invite_sent';
+      const existing = await Event.findByContactCampaignAndType(campaignId, parseInt(contactId, 10), eventType);
+      const invitedAt = invited.checked ? (toIsoOrNull(invited.at) || new Date().toISOString()) : null;
+      if (existing) {
+        updates.push(Event.update(existing.id, { invited_at: invitedAt }));
+      } else {
+        // create a new event row even if invitedAt is null to record manual source
+        updates.push(Event.create({
+          campaign_id: campaignId,
+          contact_id: parseInt(contactId, 10),
+          event_type: eventType,
+          event_data: { source: 'manual' },
+          invited_at: invitedAt,
+          connected_at: null,
+          replied_at: null,
+          conversation_status: null
+        }));
+      }
+    }
+
+    // Connection
+    if (connected) {
+      const eventType = 'connection_accepted';
+      const existing = await Event.findByContactCampaignAndType(campaignId, parseInt(contactId, 10), eventType);
+      const connectedAt = connected.checked ? (toIsoOrNull(connected.at) || new Date().toISOString()) : null;
+      if (existing) {
+        updates.push(Event.update(existing.id, { connected_at: connectedAt }));
+      } else {
+        updates.push(Event.create({
+          campaign_id: campaignId,
+          contact_id: parseInt(contactId, 10),
+          event_type: eventType,
+          event_data: { source: 'manual' },
+          invited_at: null,
+          connected_at: connectedAt,
+          replied_at: null,
+          conversation_status: null
+        }));
+      }
+    }
+
+    // Reply
+    if (replied) {
+      const eventType = 'contact_replied';
+      const existing = await Event.findByContactCampaignAndType(campaignId, parseInt(contactId, 10), eventType);
+      const repliedAt = replied.checked ? (toIsoOrNull(replied.at) || new Date().toISOString()) : null;
+      const conversation_status = replied.checked ? 'Replied' : null;
+      if (existing) {
+        updates.push(Event.update(existing.id, { replied_at: repliedAt, conversation_status }));
+      } else {
+        updates.push(Event.create({
+          campaign_id: campaignId,
+          contact_id: parseInt(contactId, 10),
+          event_type: eventType,
+          event_data: { source: 'manual' },
+          invited_at: null,
+          connected_at: null,
+          replied_at: repliedAt,
+          conversation_status
+        }));
+      }
+    }
+
+    const results = await Promise.all(updates);
+
+    res.json({ success: true, updated: results.length, details: results });
+  } catch (error) {
+    console.error('Error updating contact events:', error);
+    res.status(500).json({ success: false, error: 'Failed to update contact events', message: error.message });
+  }
+});
 
 // Store active SSE connections for real-time webhook monitoring
 const webhookClients = new Set();

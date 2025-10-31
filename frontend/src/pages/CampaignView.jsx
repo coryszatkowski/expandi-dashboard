@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { getCampaignDashboard, deleteContact } from '../services/api';
+import { getCampaignDashboard, deleteContact, updateContactEvents } from '../services/api';
 import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
 import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
 import { formatDateTime, formatDate } from '../utils/timezone';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2 } from 'lucide-react';
+import EventEditModal from '../components/EventEditModal';
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
 import { formatDateForBackend } from '../utils/timezone';
 
@@ -32,6 +33,8 @@ export default function CampaignView() {
   });
   const [editMode, setEditMode] = useState(false);
   const [deletingContacts, setDeletingContacts] = useState(new Set());
+  const [editTarget, setEditTarget] = useState(null); // { contact }
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -48,6 +51,27 @@ export default function CampaignView() {
       setError('Failed to load campaign data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEdit = (contact) => {
+    if (!isAdmin || !editMode) return;
+    setEditTarget({ contact });
+  };
+
+  const closeEdit = () => setEditTarget(null);
+
+  const handleSaveEvents = async (payload) => {
+    if (!editTarget?.contact) return;
+    try {
+      setSaving(true);
+      await updateContactEvents(campaignId, editTarget.contact.contact_id, payload);
+      await loadDashboard();
+      closeEdit();
+    } catch (e) {
+      alert('Failed to save changes.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -261,7 +285,7 @@ export default function CampaignView() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className={`px-6 py-4 text-center ${editMode && isAdmin ? 'cursor-pointer' : ''}`} onClick={() => openEdit(contact)}>
                         <div className="flex flex-col items-center">
                           {contact.invited ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -279,7 +303,7 @@ export default function CampaignView() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className={`px-6 py-4 text-center ${editMode && isAdmin ? 'cursor-pointer' : ''}`} onClick={() => openEdit(contact)}>
                         <div className="flex flex-col items-center">
                           {contact.connected ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -297,7 +321,7 @@ export default function CampaignView() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className={`px-6 py-4 text-center ${editMode && isAdmin ? 'cursor-pointer' : ''}`} onClick={() => openEdit(contact)}>
                         <div className="flex flex-col items-center">
                           {contact.replied ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -386,6 +410,19 @@ export default function CampaignView() {
           </dl>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {isAdmin && (
+        <EventEditModal
+          isOpen={!!editTarget}
+          onClose={closeEdit}
+          onSave={handleSaveEvents}
+          contactName={editTarget ? `${editTarget.contact.first_name} ${editTarget.contact.last_name}` : ''}
+          initialInvitedAt={editTarget?.contact?.invited_at || null}
+          initialConnectedAt={editTarget?.contact?.connected_at || null}
+          initialRepliedAt={editTarget?.contact?.replied_at || null}
+        />
+      )}
     </div>
   );
 }

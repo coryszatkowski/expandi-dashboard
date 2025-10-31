@@ -96,6 +96,12 @@ export const getRecentWebhooks = async () => {
   return response.data;
 };
 
+// Admin: Update contact events (invited/connected/replied) for a campaign contact
+export const updateContactEvents = async (campaignId, contactId, data) => {
+  const response = await api.put(`/api/admin/campaigns/${campaignId}/contacts/${contactId}/events`, data);
+  return response.data;
+};
+
 // ========== DASHBOARD ENDPOINTS ==========
 
 export const getCompanyDashboard = async (shareToken, filters = {}) => {
