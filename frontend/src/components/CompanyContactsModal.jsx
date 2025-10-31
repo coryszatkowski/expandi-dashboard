@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileSpreadsheet, Download } from 'lucide-react';
-import { getCompanyContacts } from '../services/api';
+import { X, FileSpreadsheet, Download, Edit2, Save, XCircle } from 'lucide-react';
+import { getCompanyContacts, updateCompanyContact } from '../services/api';
 import { formatDateTime } from '../utils/timezone';
 
 export default function CompanyContactsModal({ isOpen, onClose, companyId, companyName }) {
@@ -8,6 +8,9 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [editingContact, setEditingContact] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [savingContact, setSavingContact] = useState(null);
 
   useEffect(() => {
     if (isOpen && companyId) {
@@ -17,6 +20,9 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
       setContacts([]);
       setError(null);
       setTotalCount(0);
+      setEditingContact(null);
+      setEditForm({});
+      setSavingContact(null);
     }
   }, [isOpen, companyId]);
 
@@ -77,6 +83,61 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  const startEditing = (contact) => {
+    setEditingContact(`${contact.contact_id}-${contact.campaign_id}`);
+    setEditForm({
+      first_name: contact.first_name || '',
+      last_name: contact.last_name || '',
+      company_name: contact.company_name || '',
+      job_title: contact.job_title || '',
+      email: contact.email || '',
+      phone: contact.phone || '',
+      profile_link: contact.profile_link || ''
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingContact(null);
+    setEditForm({});
+  };
+
+  const handleSave = async (contact) => {
+    try {
+      setSavingContact(`${contact.contact_id}-${contact.campaign_id}`);
+      const data = await updateCompanyContact(companyId, contact.contact_id, {
+        campaign_id: contact.campaign_id,
+        ...editForm
+      });
+
+      if (data.success) {
+        // Update the contact in the local state
+        setContacts(prevContacts =>
+          prevContacts.map(c =>
+            c.contact_id === contact.contact_id && c.campaign_id === contact.campaign_id
+              ? { ...c, ...editForm }
+              : c
+          )
+        );
+        setEditingContact(null);
+        setEditForm({});
+      } else {
+        alert('Failed to save contact: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Error saving contact:', err);
+      alert('Failed to save contact. Please try again.');
+    } finally {
+      setSavingContact(null);
+    }
+  };
+
+  const updateEditForm = (field, value) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const isEditing = (contact) => editingContact === `${contact.contact_id}-${contact.campaign_id}`;
+  const isSaving = (contact) => savingContact === `${contact.contact_id}-${contact.campaign_id}`;
 
   if (!isOpen) return null;
 
@@ -141,21 +202,97 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Connected</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Replied</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {contacts.map((contact, index) => (
+                  {contacts.map((contact, index) => {
+                    const editing = isEditing(contact);
+                    const saving = isSaving(contact);
+                    
+                    return (
                     <tr key={`${contact.unique_contact_id}-${index}`} className="hover:bg-gray-50">
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.unique_contact_id || '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {contact.first_name || ''} {contact.last_name || ''}
+                        {editing ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={editForm.first_name || ''}
+                              onChange={(e) => updateEditForm('first_name', e.target.value)}
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder="First"
+                            />
+                            <input
+                              type="text"
+                              value={editForm.last_name || ''}
+                              onChange={(e) => updateEditForm('last_name', e.target.value)}
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder="Last"
+                            />
+                          </div>
+                        ) : (
+                          `${contact.first_name || ''} ${contact.last_name || ''}`
+                        )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.company_name || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.job_title || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.email || '-'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{contact.phone || '-'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {editing ? (
+                          <input
+                            type="text"
+                            value={editForm.company_name || ''}
+                            onChange={(e) => updateEditForm('company_name', e.target.value)}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          contact.company_name || '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {editing ? (
+                          <input
+                            type="text"
+                            value={editForm.job_title || ''}
+                            onChange={(e) => updateEditForm('job_title', e.target.value)}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          contact.job_title || '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {editing ? (
+                          <input
+                            type="email"
+                            value={editForm.email || ''}
+                            onChange={(e) => updateEditForm('email', e.target.value)}
+                            className="w-40 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          contact.email || '-'
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {editing ? (
+                          <input
+                            type="tel"
+                            value={editForm.phone || ''}
+                            onChange={(e) => updateEditForm('phone', e.target.value)}
+                            className="w-32 px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        ) : (
+                          contact.phone || '-'
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        {contact.profile_link ? (
+                        {editing ? (
+                          <input
+                            type="url"
+                            value={editForm.profile_link || ''}
+                            onChange={(e) => updateEditForm('profile_link', e.target.value)}
+                            className="w-48 px-2 py-1 border border-gray-300 rounded text-sm"
+                            placeholder="https://..."
+                          />
+                        ) : contact.profile_link ? (
                           <a href={contact.profile_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                             View Profile
                           </a>
@@ -222,8 +359,42 @@ export default function CompanyContactsModal({ isOpen, onClose, companyId, compa
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {contact.created_at ? formatDateTime(contact.created_at) : '-'}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        {editing ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleSave(contact)}
+                              disabled={saving}
+                              className="p-1 text-green-600 hover:bg-green-100 rounded transition-colors disabled:opacity-50"
+                              title="Save"
+                            >
+                              {saving ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                              ) : (
+                                <Save className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              disabled={saving}
+                              className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
+                              title="Cancel"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => startEditing(contact)}
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>

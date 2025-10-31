@@ -280,6 +280,8 @@ class Contact {
           WHEN c.linked_to_contact_id IS NOT NULL THEN c.linked_to_contact_id
           ELSE c.contact_id
         END as unique_contact_id,
+        c.contact_id,
+        c.campaign_id,
         c.first_name,
         c.last_name,
         c.company_name,

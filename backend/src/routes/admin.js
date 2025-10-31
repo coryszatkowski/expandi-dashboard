@@ -1241,6 +1241,72 @@ router.get('/companies/:companyId/contacts', requireAuth, async (req, res) => {
 });
 
 /**
+ * PUT /api/admin/companies/:companyId/contacts/:contactId
+ * 
+ * Update contact information for a specific contact in a campaign
+ * Body: { campaign_id, first_name, last_name, company_name, job_title, email, phone, profile_link }
+ */
+router.put('/companies/:companyId/contacts/:contactId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { companyId, contactId } = req.params;
+    const { campaign_id, ...contactData } = req.body;
+
+    if (!campaign_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'campaign_id is required'
+      });
+    }
+
+    // Verify company exists and campaign belongs to company
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        error: 'Company not found'
+      });
+    }
+
+    // Verify contact exists
+    const contact = await Contact.findByContactIdAndCampaign(parseInt(contactId, 10), campaign_id);
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        error: 'Contact not found'
+      });
+    }
+
+    // Verify campaign belongs to company
+    const campaign = await db.selectOne(
+      'SELECT id FROM campaigns WHERE id = ? AND profile_id IN (SELECT id FROM profiles WHERE company_id = ?)',
+      [campaign_id, companyId]
+    );
+
+    if (!campaign) {
+      return res.status(403).json({
+        success: false,
+        error: 'Campaign does not belong to this company'
+      });
+    }
+
+    // Update contact
+    const updated = await Contact.update(parseInt(contactId, 10), campaign_id, contactData);
+
+    res.json({
+      success: true,
+      contact: updated
+    });
+  } catch (error) {
+    console.error('Error updating contact:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update contact',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/admin/error-stats
  * 
  * Get error handling statistics for dashboard

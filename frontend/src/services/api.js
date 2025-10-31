@@ -114,6 +114,12 @@ export const getCompanyContacts = async (companyId, options = {}) => {
   return response.data;
 };
 
+// Admin: Update a contact for a company
+export const updateCompanyContact = async (companyId, contactId, data) => {
+  const response = await api.put(`/api/admin/companies/${companyId}/contacts/${contactId}`, data);
+  return response.data;
+};
+
 // ========== DASHBOARD ENDPOINTS ==========
 
 export const getCompanyDashboard = async (shareToken, filters = {}) => {
