@@ -53,23 +53,25 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity Over Time</h3>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={formattedData}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} />
           <XAxis dataKey="displayDate" />
           <YAxis 
             type="number"
             scale="linear"
             domain={[0, yAxisMax]}
             allowDecimals={false}
+            ticks={yAxisTicks}
             width={60}
             tick={false}
             axisLine={true}
           />
-          {/* Manually render all tick labels using ReferenceLine to bypass Recharts filtering */}
+          {/* Manually render all horizontal grid lines and tick labels using ReferenceLine to bypass Recharts filtering */}
           {yAxisTicks.map((tickValue) => (
             <ReferenceLine 
               key={tickValue} 
               y={tickValue} 
-              stroke="none"
+              stroke="#e5e7eb"
+              strokeDasharray="3 3"
               label={
                 <Label 
                   value={tickValue} 
