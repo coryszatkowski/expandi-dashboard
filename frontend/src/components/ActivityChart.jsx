@@ -10,6 +10,20 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
       displayDate: formatChartDate(item.date),
     })), [data]);
 
+  // Custom tick renderer that ensures all desired ticks are shown
+  const renderYAxisTick = useMemo(() => {
+    return (props) => {
+      const { x, y, payload } = props;
+      return (
+        <g transform={`translate(${x},${y})`}>
+          <text x={0} y={0} dy={3} textAnchor="end" fill="#666" fontSize={12}>
+            {payload.value}
+          </text>
+        </g>
+      );
+    };
+  }, []);
+
   // Calculate y-axis domain: minimum 40, scale in increments of 5
   const { yAxisMax, yAxisTicks } = useMemo(() => {
     // Minimum top value is 40
@@ -56,9 +70,15 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="displayDate" />
           <YAxis 
+            type="number"
+            scale="linear"
             domain={[0, yAxisMax]}
             allowDecimals={false}
             ticks={yAxisTicks}
+            tick={renderYAxisTick}
+            width={80}
+            tickMargin={8}
+            allowDataOverflow={true}
           />
           <Tooltip />
           <Legend />
