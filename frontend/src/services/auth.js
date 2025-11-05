@@ -116,6 +116,10 @@ export const changePassword = async (currentPassword, newPassword) => {
     return response.data;
   } catch (error) {
     console.error('Change password error:', error);
+    // Extract error message from axios error response
+    if (error.response?.data) {
+      return error.response.data;
+    }
     return { success: false, error: 'Network error. Please try again.' };
   }
 };
@@ -129,6 +133,10 @@ export const addAdmin = async (username, password) => {
     return response.data;
   } catch (error) {
     console.error('Add admin error:', error);
+    // Extract error message from axios error response
+    if (error.response?.data) {
+      return error.response.data;
+    }
     return { success: false, error: 'Network error. Please try again.' };
   }
 };
