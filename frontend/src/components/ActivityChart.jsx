@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Label } from 'recharts';
 import { formatChartDate } from '../utils/timezone';
 
 const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) {
@@ -9,20 +9,6 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
       ...item,
       displayDate: formatChartDate(item.date),
     })), [data]);
-
-  // Custom tick renderer that ensures all desired ticks are shown
-  const renderYAxisTick = useMemo(() => {
-    return (props) => {
-      const { x, y, payload } = props;
-      return (
-        <g transform={`translate(${x},${y})`}>
-          <text x={0} y={0} dy={3} textAnchor="end" fill="#666" fontSize={12}>
-            {payload.value}
-          </text>
-        </g>
-      );
-    };
-  }, []);
 
   // Calculate y-axis domain: minimum 40, scale in increments of 5
   const { yAxisMax, yAxisTicks } = useMemo(() => {
@@ -74,12 +60,31 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
             scale="linear"
             domain={[0, yAxisMax]}
             allowDecimals={false}
-            ticks={yAxisTicks}
-            tick={renderYAxisTick}
-            width={80}
-            tickMargin={8}
-            allowDataOverflow={true}
+            width={60}
+            tick={false}
+            axisLine={true}
           />
+          {/* Manually render all tick labels using ReferenceLine to bypass Recharts filtering */}
+          {yAxisTicks.map((tickValue) => (
+            <ReferenceLine 
+              key={tickValue} 
+              y={tickValue} 
+              stroke="none"
+              label={
+                <Label 
+                  value={tickValue} 
+                  position="left" 
+                  style={{ 
+                    textAnchor: 'end', 
+                    fill: '#666', 
+                    fontSize: '14px',
+                    fontWeight: 400
+                  }}
+                  offset={5}
+                />
+              }
+            />
+          ))}
           <Tooltip />
           <Legend />
           <Line type="monotone" dataKey="invites" stroke="#3b82f6" name="Invites" />
