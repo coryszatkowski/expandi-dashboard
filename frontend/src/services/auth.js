@@ -112,16 +112,8 @@ export const logout = () => {
  */
 export const changePassword = async (currentPassword, newPassword) => {
   try {
-    const response = await fetch(`${API_URL}/api/auth/change-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
-
-    const data = await response.json();
-    return data;
+    const response = await api.post('/api/auth/change-password', { currentPassword, newPassword });
+    return response.data;
   } catch (error) {
     console.error('Change password error:', error);
     return { success: false, error: 'Network error. Please try again.' };
@@ -133,16 +125,8 @@ export const changePassword = async (currentPassword, newPassword) => {
  */
 export const addAdmin = async (username, password) => {
   try {
-    const response = await fetch(`${API_URL}/api/auth/add-admin`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ username, password }),
-    });
-
-    const data = await response.json();
-    return data;
+    const response = await api.post('/api/auth/add-admin', { username, password });
+    return response.data;
   } catch (error) {
     console.error('Add admin error:', error);
     return { success: false, error: 'Network error. Please try again.' };
