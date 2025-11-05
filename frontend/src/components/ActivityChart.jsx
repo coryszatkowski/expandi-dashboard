@@ -10,6 +10,44 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
       displayDate: formatChartDate(item.date),
     })), [data]);
 
+  // Calculate y-axis domain: minimum 40, scale in increments of 5
+  const { yAxisMax, yAxisTicks } = useMemo(() => {
+    // Minimum top value is 40
+    const minTop = 40;
+    
+    // Find the maximum value across all data points and all fields
+    let maxValue = 0;
+    if (formattedData.length > 0) {
+      const allValues = formattedData.flatMap(item => [
+        item.invites || 0,
+        item.connections || 0,
+        item.replies || 0
+      ]);
+      maxValue = Math.max(...allValues);
+    }
+    
+    // If max is less than or equal to 40, use 40
+    // Otherwise, round up to the next multiple of 5
+    let calculatedMax;
+    if (maxValue <= minTop) {
+      calculatedMax = minTop;
+    } else {
+      // Round up to next multiple of 5
+      calculatedMax = Math.ceil(maxValue / 5) * 5;
+    }
+
+    // Generate ticks in increments of 5 from 0 to calculatedMax
+    const ticks = [];
+    for (let i = 0; i <= calculatedMax; i += 5) {
+      ticks.push(i);
+    }
+
+    return {
+      yAxisMax: calculatedMax,
+      yAxisTicks: ticks
+    };
+  }, [formattedData]);
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity Over Time</h3>
@@ -18,9 +56,9 @@ const ActivityChart = React.memo(function ActivityChart({ data, height = 300 }) 
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="displayDate" />
           <YAxis 
-            domain={[0, 'dataMax + 10']}
+            domain={[0, yAxisMax]}
             allowDecimals={false}
-            tickCount={6}
+            ticks={yAxisTicks}
           />
           <Tooltip />
           <Legend />
