@@ -237,14 +237,14 @@ router.get('/:shareToken/campaign/:campaignId', async (req, res) => {
       });
     }
 
-    // Parse date filters
+    // Parse filters
     const options = {};
-    if (req.query.start_date) {
-      options.start_date = req.query.start_date;
-    }
-    if (req.query.end_date) {
-      options.end_date = req.query.end_date;
-    }
+    if (req.query.start_date) options.start_date = req.query.start_date;
+    if (req.query.end_date) options.end_date = req.query.end_date;
+    if (req.query.search) options.search = req.query.search;
+    if (req.query.status) options.status = req.query.status;
+    if (req.query.sortBy) options.sortBy = req.query.sortBy;
+    if (req.query.sortOrder) options.sortOrder = req.query.sortOrder;
 
     // Get campaign dashboard data
     const dashboard = await AnalyticsService.getCampaignDashboard(campaignId, options);

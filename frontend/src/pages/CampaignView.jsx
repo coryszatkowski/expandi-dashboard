@@ -6,7 +6,7 @@ import ActivityChart from '../components/ActivityChart';
 import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
 import { formatDateTime, formatDate } from '../utils/timezone';
-import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2 } from 'lucide-react';
+import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import EventEditModal from '../components/EventEditModal';
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
 import { formatDateForBackend } from '../utils/timezone';
@@ -31,6 +31,13 @@ export default function CampaignView() {
     start_date: formatDateForBackend(start),
     end_date: formatDateForBackend(end)
   });
+  
+  // Table filtering and sorting state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sortBy, setSortBy] = useState('first_name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  
   const [editMode, setEditMode] = useState(false);
   const [deletingContacts, setDeletingContacts] = useState(new Set());
   const [editTarget, setEditTarget] = useState(null); // { contact }
@@ -38,13 +45,22 @@ export default function CampaignView() {
 
   useEffect(() => {
     loadDashboard();
-  }, [campaignId, filters]);
+  }, [campaignId, filters, searchQuery, statusFilter, sortBy, sortOrder]);
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getCampaignDashboard(shareToken, campaignId, filters);
+      
+      const apiFilters = {
+        ...filters,
+        search: searchQuery,
+        status: statusFilter,
+        sortBy,
+        sortOrder
+      };
+      
+      const data = await getCampaignDashboard(shareToken, campaignId, apiFilters);
       setDashboard(data);
     } catch (err) {
       console.error('Error loading campaign dashboard:', err);
@@ -53,6 +69,21 @@ export default function CampaignView() {
       setLoading(false);
     }
   };
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  const renderSortIcon = (column) => {
+    if (sortBy !== column) return <ArrowUpDown className="w-3 h-3 text-gray-400" />;
+    return sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-blue-600" /> : <ArrowDown className="w-3 h-3 text-blue-600" />;
+  };
+
 
   const openEdit = (contact) => {
     if (!isAdmin || !editMode) return;
@@ -228,63 +259,120 @@ export default function CampaignView() {
         )}
 
         {/* Contacts Table */}
-        {dashboard?.contacts && dashboard.contacts.length > 0 && (
+        {dashboard?.contacts && (
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
               <h2 className="text-lg font-semibold text-gray-900">Contacts ({dashboard.contacts.length})</h2>
-              {isAdmin && (
-                <button
-                  onClick={() => setEditMode(!editMode)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    editMode 
-                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Edit3 className="w-4 h-4" />
-                  {editMode ? 'Done' : 'Edit'}
-                </button>
-              )}
+              
+              <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                {/* Search */}
+                <div className="relative w-full md:w-64">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
+                    placeholder="Search contacts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                {/* Status Filter */}
+                <div className="relative w-full md:w-48">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Filter className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <select
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Replied">Replied</option>
+                    <option value="Awaiting Reply">Awaiting Reply</option>
+                    <option value="Pending Connection">Pending Connection</option>
+                    <option value="Not Invited">Not Invited</option>
+                  </select>
+                </div>
+
+                {isAdmin && (
+                  <button
+                    onClick={() => setEditMode(!editMode)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full md:w-auto justify-center ${
+                      editMode 
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    {editMode ? 'Done' : 'Edit'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Invited
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Connected
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Replied
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    {editMode && (
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {dashboard.contacts.map((contact) => (
-                    <tr key={contact.contact_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="max-w-xs">
-                          <div className="text-sm font-medium text-gray-900 truncate">
-                            {contact.first_name} {contact.last_name}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {contact.job_title} at {contact.company_name}
-                          </div>
+
+            {dashboard.contacts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('first_name')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Contact {renderSortIcon('first_name')}
                         </div>
-                      </td>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('invited_at')}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          Invited {renderSortIcon('invited_at')}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('connected_at')}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          Connected {renderSortIcon('connected_at')}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('replied_at')}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          Replied {renderSortIcon('replied_at')}
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      {editMode && (
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {dashboard.contacts.map((contact) => (
+                      <tr key={contact.contact_id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="max-w-xs">
+                            <div className="text-sm font-medium text-gray-900 truncate">
+                              {contact.first_name} {contact.last_name}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {contact.job_title} at {contact.company_name}
+                            </div>
+                          </div>
+                        </td>
                       <td className={`px-6 py-4 text-center ${editMode && isAdmin ? 'cursor-pointer' : ''}`} onClick={() => openEdit(contact)}>
                         <div className="flex flex-col items-center">
                           {contact.invited ? (
@@ -375,9 +463,14 @@ export default function CampaignView() {
                       )}
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+                No contacts found matching your criteria
+              </div>
+            )}
           </div>
         )}
 

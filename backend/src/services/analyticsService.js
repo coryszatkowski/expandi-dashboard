@@ -615,14 +615,17 @@ class AnalyticsService {
   }
 
   /**
-   * Get contacts for a campaign with their progress status
+   * Get contacts for a campaign with their progress status, filtering, and sorting
    * @param {string} campaignId - Campaign UUID
    * @param {Object} options - Filter options
    * @returns {Array} Array of contact objects with progress status
    */
   static async getCampaignContacts(campaignId, options = {}) {
+    const { search, status: statusFilter, sortBy, sortOrder } = options;
+
     // Get all unique contacts for this campaign
-    const contacts = await db.selectAll(`
+    // Base query
+    let query = `
       SELECT DISTINCT 
         c.contact_id,
         c.first_name,
@@ -632,11 +635,35 @@ class AnalyticsService {
         c.email
       FROM contacts c
       WHERE c.campaign_id = ?
-      ORDER BY c.first_name, c.last_name
-    `, [campaignId]);
+    `;
+    
+    const params = [campaignId];
+
+    // Apply search filter
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      if (db.isPostgreSQL) {
+        query += ` AND (
+          LOWER(c.first_name) LIKE ? OR 
+          LOWER(c.last_name) LIKE ? OR 
+          LOWER(c.company_name) LIKE ?
+        )`;
+      } else {
+        query += ` AND (
+          LOWER(c.first_name) LIKE ? OR 
+          LOWER(c.last_name) LIKE ? OR 
+          LOWER(c.company_name) LIKE ?
+        )`;
+      }
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    query += ` ORDER BY c.first_name, c.last_name`;
+
+    const contacts = await db.selectAll(query, params);
     
     // For each contact, get their progress status
-    const contactsWithStatus = [];
+    let contactsWithStatus = [];
     for (const contact of contacts) {
       // Get the latest event for this contact in this campaign
       const latestEvent = await db.selectOne(`
@@ -711,6 +738,34 @@ class AnalyticsService {
       });
     }
     
+    // Apply Status Filtering (in memory since status is derived)
+    if (statusFilter && statusFilter !== 'All') {
+      contactsWithStatus = contactsWithStatus.filter(c => c.conversation_status === statusFilter);
+    }
+
+    // Apply Sorting (in memory since status/dates are derived)
+    if (sortBy) {
+      contactsWithStatus.sort((a, b) => {
+        let valA = a[sortBy];
+        let valB = b[sortBy];
+
+        // Handle dates
+        if (['invited_at', 'connected_at', 'replied_at'].includes(sortBy)) {
+          valA = valA ? new Date(valA).getTime() : 0;
+          valB = valB ? new Date(valB).getTime() : 0;
+        } 
+        // Handle strings
+        else if (typeof valA === 'string') {
+          valA = valA.toLowerCase();
+          valB = valB ? valB.toLowerCase() : '';
+        }
+
+        if (valA < valB) return sortOrder === 'desc' ? 1 : -1;
+        if (valA > valB) return sortOrder === 'desc' ? -1 : 1;
+        return 0;
+      });
+    }
+
     return contactsWithStatus;
   }
 
