@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { getCampaignDashboard, deleteContact, updateContactEvents } from '../services/api';
+import { getCampaignDashboard, deleteContact, updateContactEvents, addCampaignTag, removeCampaignTag } from '../services/api';
 import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
 import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
+import Tag from '../components/Tag';
 import { formatDateTime, formatDate } from '../utils/timezone';
-import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, Calendar, Edit3, Trash2, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import EventEditModal from '../components/EventEditModal';
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
 import { formatDateForBackend } from '../utils/timezone';
@@ -20,6 +21,11 @@ export default function CampaignView() {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Tag state
+  const [newTag, setNewTag] = useState('');
+  const [isAddingTag, setIsAddingTag] = useState(false);
   
   // Calculate last month date range for initial load
   const now = new Date();
@@ -67,6 +73,7 @@ export default function CampaignView() {
       setError('Failed to load campaign data');
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -136,7 +143,45 @@ export default function CampaignView() {
     }
   };
 
-  if (loading) {
+  const handleAddTag = async (e) => {
+    e.preventDefault();
+    if (!newTag.trim()) return;
+
+    try {
+      const result = await addCampaignTag(campaignId, newTag.trim());
+      
+      // Update local state
+      setDashboard(prev => ({
+        ...prev,
+        tags: [...(prev.tags || []), result.tag]
+      }));
+      
+      setNewTag('');
+      setIsAddingTag(false);
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      alert('Failed to add tag');
+    }
+  };
+
+  const handleRemoveTag = async (tagId) => {
+    if (!confirm('Remove this tag?')) return;
+    
+    try {
+      await removeCampaignTag(campaignId, tagId);
+      
+      // Update local state
+      setDashboard(prev => ({
+        ...prev,
+        tags: (prev.tags || []).filter(t => t.id !== tagId)
+      }));
+    } catch (error) {
+      console.error('Error removing tag:', error);
+      alert('Failed to remove tag');
+    }
+  };
+
+  if (isInitialLoad && loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
@@ -168,6 +213,7 @@ export default function CampaignView() {
   const campaign = dashboard?.campaign || {};
   const kpis = dashboard?.kpis || {};
   const timeline = dashboard?.activity_timeline || [];
+  const tags = dashboard?.tags || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,7 +237,44 @@ export default function CampaignView() {
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{campaign.campaign_name}</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl font-bold text-gray-900">{campaign.campaign_name}</h1>
+              {/* Tags Display */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {tags.map(tag => (
+                  <Tag 
+                    key={tag.id} 
+                    text={tag.name} 
+                    canDelete={isAdmin}
+                    onDelete={() => handleRemoveTag(tag.id)}
+                  />
+                ))}
+                
+                {isAdmin && !isAddingTag && (
+                  <button
+                    onClick={() => setIsAddingTag(true)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Add tag"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                )}
+                
+                {isAdmin && isAddingTag && (
+                  <form onSubmit={handleAddTag} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded-full focus:outline-none focus:ring-1 focus:ring-blue-500 w-32"
+                      placeholder="New tag..."
+                      autoFocus
+                      onBlur={() => !newTag && setIsAddingTag(false)}
+                    />
+                  </form>
+                )}
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4" />

@@ -140,6 +140,33 @@ CREATE INDEX IF NOT EXISTS idx_error_notifications_resolved ON error_notificatio
 CREATE INDEX IF NOT EXISTS idx_error_notifications_created_at ON error_notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_error_notifications_severity ON error_notifications(severity);
 
+-- Tagging System Tables
+CREATE TABLE IF NOT EXISTS tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS campaign_tags (
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (campaign_id, tag_id)
+);
+
+CREATE TABLE IF NOT EXISTS contact_tags (
+  contact_id INTEGER NOT NULL,
+  campaign_id UUID NOT NULL,
+  tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (contact_id, campaign_id, tag_id),
+  FOREIGN KEY (contact_id, campaign_id) REFERENCES contacts(contact_id, campaign_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+CREATE INDEX IF NOT EXISTS idx_campaign_tags_campaign_id ON campaign_tags(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_tags_tag_id ON campaign_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_contact_tags_contact_id_campaign_id ON contact_tags(contact_id, campaign_id);
+CREATE INDEX IF NOT EXISTS idx_contact_tags_tag_id ON contact_tags(tag_id);
+
 -- Insert sample data for testing (optional - remove in production)
 -- INSERT INTO companies (id, name, share_token, created_at, updated_at) 
--- VALUES ('test-company-1', 'Test Company', 'test-share-token-123', datetime('now'), datetime('now'));
+-- VALUES ('test-company-1', 'Test Company', 'test-share-token-123', datetime('now'));

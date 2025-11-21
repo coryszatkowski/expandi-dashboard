@@ -7,6 +7,7 @@
 
 const db = require('../utils/databaseHelper');
 const { format, parseISO, startOfDay, endOfDay, addDays } = require('date-fns');
+const Tag = require('../models/Tag');
 
 class AnalyticsService {
   /**
@@ -96,12 +97,15 @@ class AnalyticsService {
     const campaignSummaries = [];
     for (const campaign of campaigns) {
       const campaignKPIs = await this.getCampaignKPIs(campaign.id, options);
+      const tags = await Tag.getForCampaign(campaign.id);
+      
       campaignSummaries.push({
         id: campaign.id,
         campaign_name: campaign.campaign_name,
         campaign_instance: campaign.campaign_instance,
         started_at: campaign.started_at,
-        ...campaignKPIs
+        ...campaignKPIs,
+        tags
       });
     }
 
@@ -128,11 +132,13 @@ class AnalyticsService {
     const kpis = await this.getCampaignKPIs(campaignId, options);
     const timeline = await this.getCampaignTimeline(campaignId, options);
     const contacts = await this.getCampaignContacts(campaignId, options);
+    const tags = await Tag.getForCampaign(campaignId);
 
     return {
       kpis,
       activity_timeline: timeline,
-      contacts
+      contacts,
+      tags
     };
   }
 
@@ -662,6 +668,9 @@ class AnalyticsService {
 
     const contacts = await db.selectAll(query, params);
     
+    // Batch fetch tags for all contacts in this campaign
+    const contactTagsMap = await Tag.getForContactsInCampaign(campaignId);
+
     // For each contact, get their progress status
     let contactsWithStatus = [];
     for (const contact of contacts) {
@@ -734,7 +743,8 @@ class AnalyticsService {
         invited_at: inviteEvent?.invited_at,
         connected_at: connectionEvent?.connected_at,
         replied_at: replyEvent?.replied_at || null,
-        conversation_status: status
+        conversation_status: status,
+        tags: contactTagsMap[contact.contact_id] || []
       });
     }
     

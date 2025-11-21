@@ -5,6 +5,7 @@ import KPICard from '../components/KPICard';
 import ActivityChart from '../components/ActivityChart';
 import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
+import Tag from '../components/Tag';
 import { Send, Users, TrendingUp, MessageCircle, ArrowLeft, ChevronRight, Calendar, Edit3, Trash2 } from 'lucide-react';
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
 import { formatDateForBackend } from '../utils/timezone';
@@ -237,9 +238,18 @@ export default function AccountView() {
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                          {campaign.campaign_name}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {campaign.campaign_name}
+                          </h3>
+                          {campaign.tags && campaign.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {campaign.tags.map(tag => (
+                                <Tag key={tag.id} text={tag.name} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Calendar className="w-4 h-4" />
                           Started: {new Date(campaign.started_at).toLocaleDateString()}

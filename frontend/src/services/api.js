@@ -120,6 +120,17 @@ export const updateCompanyContact = async (companyId, contactId, data) => {
   return response.data;
 };
 
+// Admin: Tag Management
+export const addCampaignTag = async (campaignId, tagName) => {
+  const response = await api.post(`/api/admin/campaigns/${campaignId}/tags`, { tagName });
+  return response.data;
+};
+
+export const removeCampaignTag = async (campaignId, tagId) => {
+  const response = await api.delete(`/api/admin/campaigns/${campaignId}/tags/${tagId}`);
+  return response.data;
+};
+
 // ========== DASHBOARD ENDPOINTS ==========
 
 export const getCompanyDashboard = async (shareToken, filters = {}) => {

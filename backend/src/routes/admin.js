@@ -15,6 +15,7 @@ const Company = require('../models/Company');
 const Profile = require('../models/Profile');
 const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
+const Tag = require('../models/Tag');
 const AnalyticsService = require('../services/analyticsService');
 const BackfillService = require('../services/backfillService');
 const FailedWebhookArchive = require('../models/FailedWebhookArchive');
@@ -57,6 +58,78 @@ const upload = multer({
   },
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
+
+// ============================================================================
+// TAG MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/admin/campaigns/:id/tags
+ * 
+ * Add a tag to a campaign
+ * Body: { "tagName": "string" }
+ */
+router.post('/campaigns/:id/tags', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tagName } = req.body;
+
+    if (!tagName || !tagName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tag name is required'
+      });
+    }
+
+    // Verify campaign exists
+    const campaign = await Campaign.findById(id);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    const result = await Tag.addToCampaign(id, tagName.trim());
+
+    res.status(201).json({
+      success: true,
+      tag: result.tag
+    });
+  } catch (error) {
+    console.error('Error adding tag to campaign:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add tag',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/admin/campaigns/:id/tags/:tagId
+ * 
+ * Remove a tag from a campaign
+ */
+router.delete('/campaigns/:id/tags/:tagId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id, tagId } = req.params;
+
+    await Tag.removeFromCampaign(id, tagId);
+
+    res.json({
+      success: true,
+      message: 'Tag removed successfully'
+    });
+  } catch (error) {
+    console.error('Error removing tag from campaign:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove tag',
+      message: error.message
+    });
   }
 });
 
