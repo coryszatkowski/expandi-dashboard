@@ -276,12 +276,12 @@ router.get('/:shareToken/campaign/:campaignId', async (req, res) => {
  * 
  * Delete a contact and all associated events
  */
-router.delete('/:shareToken/contact/:contactId', (req, res) => {
+router.delete('/:shareToken/contact/:contactId', async (req, res) => {
   try {
     const { shareToken, contactId } = req.params;
 
     // Find company by share token
-    const company = Company.findByShareToken(shareToken);
+    const company = await Company.findByShareToken(shareToken);
 
     if (!company) {
       return res.status(404).json({
@@ -295,16 +295,31 @@ router.delete('/:shareToken/contact/:contactId', (req, res) => {
 
     // Delete contact and all associated events
     const db = require('../config/database').getDatabase();
+    const isPostgreSQL = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres');
     
-    // Delete events first (due to foreign key constraints)
-    const deleteEventsStmt = db.prepare('DELETE FROM events WHERE contact_id = ?');
-    const eventsResult = deleteEventsStmt.run(contactId);
+    let eventsDeleted, contactDeleted;
     
-    // Delete contact
-    const deleteContactStmt = db.prepare('DELETE FROM contacts WHERE contact_id = ?');
-    const contactResult = deleteContactStmt.run(contactId);
+    if (isPostgreSQL) {
+      // PostgreSQL: Delete events first (due to foreign key constraints)
+      const eventsResult = await db.query('DELETE FROM events WHERE contact_id = $1', [contactId]);
+      eventsDeleted = eventsResult.rowCount;
+      
+      // Delete contact
+      const contactResult = await db.query('DELETE FROM contacts WHERE contact_id = $1', [contactId]);
+      contactDeleted = contactResult.rowCount;
+    } else {
+      // SQLite: Delete events first (due to foreign key constraints)
+      const deleteEventsStmt = db.prepare('DELETE FROM events WHERE contact_id = ?');
+      const eventsResult = deleteEventsStmt.run(contactId);
+      eventsDeleted = eventsResult.changes;
+      
+      // Delete contact
+      const deleteContactStmt = db.prepare('DELETE FROM contacts WHERE contact_id = ?');
+      const contactResult = deleteContactStmt.run(contactId);
+      contactDeleted = contactResult.changes;
+    }
 
-    if (contactResult.changes === 0) {
+    if (contactDeleted === 0) {
       return res.status(404).json({
         success: false,
         error: 'Contact not found'
@@ -314,7 +329,7 @@ router.delete('/:shareToken/contact/:contactId', (req, res) => {
     res.json({
       success: true,
       message: 'Contact deleted successfully',
-      deleted_events: eventsResult.changes
+      deleted_events: eventsDeleted
     });
 
   } catch (error) {
