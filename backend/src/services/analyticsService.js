@@ -225,12 +225,14 @@ class AnalyticsService {
   static async getCampaignKPIs(campaignId, options = {}) {
     // Build COUNT conditions that check both event_type AND specific timestamp
     // Use parameterized queries for date conditions
-    const allParams = [campaignId]; // First parameter: campaign_id = ?
+    // IMPORTANT: Parameters must match the order of ? placeholders in the SQL
+    // The ? placeholders appear in the COUNT conditions first, then in the WHERE clause
     
     // Build COUNT conditions with parameterized date filters
     let invitesCondition = `event_type = 'invite_sent'`;
     let connectionsCondition = `event_type = 'connection_accepted'`;
     let repliesCondition = `event_type = 'contact_replied'`;
+    const allParams = [];
     
     if (options.start_date) {
       let startOfDay;
@@ -246,6 +248,7 @@ class AnalyticsService {
       invitesCondition += ` AND invited_at >= ?`;
       connectionsCondition += ` AND connected_at >= ?`;
       repliesCondition += ` AND replied_at >= ?`;
+      // These ? appear first in the SQL (in the SELECT COUNT clauses)
       allParams.push(startUTC, startUTC, startUTC);
     }
     
@@ -263,8 +266,12 @@ class AnalyticsService {
       invitesCondition += ` AND invited_at <= ?`;
       connectionsCondition += ` AND connected_at <= ?`;
       repliesCondition += ` AND replied_at <= ?`;
+      // These ? appear after start_date params but before WHERE clause
       allParams.push(endUTC, endUTC, endUTC);
     }
+    
+    // campaign_id = ? appears last in the SQL (in the WHERE clause)
+    allParams.push(campaignId);
 
     const counts = await db.selectOne(`
       SELECT 
