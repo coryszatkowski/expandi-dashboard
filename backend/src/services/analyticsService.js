@@ -223,17 +223,98 @@ class AnalyticsService {
    * @returns {Object} Campaign KPIs
    */
   static async getCampaignKPIs(campaignId, options = {}) {
-    const { whereClause, params } = this.buildDateFilter(options);
+    // Build date filter for WHERE clause (include events with any timestamp in range)
+    let dateWhereClause = '';
+    const dateParams = [];
+    
+    if (options.start_date || options.end_date) {
+      let startOfDayUTC = null;
+      let endOfDayUTC = null;
+      
+      if (options.start_date) {
+        let startOfDay;
+        if (options.start_date.includes('T')) {
+          startOfDay = new Date(options.start_date);
+        } else {
+          startOfDay = new Date(options.start_date + 'T00:00:00');
+        }
+        if (isNaN(startOfDay.getTime())) {
+          throw new Error(`Invalid start_date: ${options.start_date}`);
+        }
+        startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      }
+      
+      if (options.end_date) {
+        let endOfDay;
+        if (options.end_date.includes('T')) {
+          endOfDay = new Date(options.end_date);
+        } else {
+          endOfDay = new Date(options.end_date + 'T23:59:59');
+        }
+        if (isNaN(endOfDay.getTime())) {
+          throw new Error(`Invalid end_date: ${options.end_date}`);
+        }
+        endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      }
+      
+      // Include events that have ANY timestamp in the date range
+      const conditions = [];
+      if (startOfDayUTC && endOfDayUTC) {
+        conditions.push(`(invited_at IS NOT NULL AND invited_at >= ? AND invited_at <= ?)`);
+        conditions.push(`(connected_at IS NOT NULL AND connected_at >= ? AND connected_at <= ?)`);
+        conditions.push(`(replied_at IS NOT NULL AND replied_at >= ? AND replied_at <= ?)`);
+        dateParams.push(startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC);
+      } else if (startOfDayUTC) {
+        conditions.push(`(invited_at IS NOT NULL AND invited_at >= ?)`);
+        conditions.push(`(connected_at IS NOT NULL AND connected_at >= ?)`);
+        conditions.push(`(replied_at IS NOT NULL AND replied_at >= ?)`);
+        dateParams.push(startOfDayUTC, startOfDayUTC, startOfDayUTC);
+      } else if (endOfDayUTC) {
+        conditions.push(`(invited_at IS NOT NULL AND invited_at <= ?)`);
+        conditions.push(`(connected_at IS NOT NULL AND connected_at <= ?)`);
+        conditions.push(`(replied_at IS NOT NULL AND replied_at <= ?)`);
+        dateParams.push(endOfDayUTC, endOfDayUTC, endOfDayUTC);
+      }
+      
+      if (conditions.length > 0) {
+        dateWhereClause = ` AND (${conditions.join(' OR ')})`;
+      }
+    }
+
+    // Build COUNT conditions that check both event_type AND specific timestamp
+    let invitesCondition = `event_type = 'invite_sent'`;
+    let connectionsCondition = `event_type = 'connection_accepted'`;
+    let repliesCondition = `event_type = 'contact_replied'`;
+    
+    if (options.start_date) {
+      const startOfDay = options.start_date.includes('T') 
+        ? new Date(options.start_date)
+        : new Date(options.start_date + 'T00:00:00');
+      const startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      invitesCondition += ` AND invited_at >= '${startUTC}'`;
+      connectionsCondition += ` AND connected_at >= '${startUTC}'`;
+      repliesCondition += ` AND replied_at >= '${startUTC}'`;
+    }
+    
+    if (options.end_date) {
+      const endOfDay = options.end_date.includes('T')
+        ? new Date(options.end_date)
+        : new Date(options.end_date + 'T23:59:59');
+      const endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      invitesCondition += ` AND invited_at <= '${endUTC}'`;
+      connectionsCondition += ` AND connected_at <= '${endUTC}'`;
+      repliesCondition += ` AND replied_at <= '${endUTC}'`;
+    }
 
     const counts = await db.selectOne(`
       SELECT 
-        COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
-        COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
-        COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
+        COUNT(CASE WHEN ${invitesCondition} THEN 1 END) as invites_sent,
+        COUNT(CASE WHEN ${connectionsCondition} THEN 1 END) as connections,
+        COUNT(DISTINCT CASE WHEN ${repliesCondition} THEN contact_id END) as replies
       FROM events
       WHERE campaign_id = ?
-      ${whereClause}
-    `, [campaignId, ...params]);
+      ${dateWhereClause}
+    `, [campaignId, ...dateParams]);
 
     return this.calculateRates(counts);
   }
@@ -344,46 +425,115 @@ class AnalyticsService {
    * @returns {Array} Timeline data points
    */
   static async getCampaignTimeline(campaignId, options = {}) {
-    // Build simpler date filter
+    // Build date filter for WHERE clause (include events with any timestamp in range)
     let dateWhereClause = '';
     const dateParams = [];
     
+    if (options.start_date || options.end_date) {
+      let startOfDayUTC = null;
+      let endOfDayUTC = null;
+      
+      if (options.start_date) {
+        const startOfDay = new Date(options.start_date + 'T00:00:00');
+        startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      }
+      
+      if (options.end_date) {
+        const endOfDay = new Date(options.end_date + 'T23:59:59');
+        endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      }
+      
+      // Include events that have ANY timestamp in the date range
+      const conditions = [];
+      if (startOfDayUTC && endOfDayUTC) {
+        conditions.push(`(invited_at IS NOT NULL AND invited_at >= ? AND invited_at <= ?)`);
+        conditions.push(`(connected_at IS NOT NULL AND connected_at >= ? AND connected_at <= ?)`);
+        conditions.push(`(replied_at IS NOT NULL AND replied_at >= ? AND replied_at <= ?)`);
+        dateParams.push(startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC, startOfDayUTC, endOfDayUTC);
+      } else if (startOfDayUTC) {
+        conditions.push(`(invited_at IS NOT NULL AND invited_at >= ?)`);
+        conditions.push(`(connected_at IS NOT NULL AND connected_at >= ?)`);
+        conditions.push(`(replied_at IS NOT NULL AND replied_at >= ?)`);
+        dateParams.push(startOfDayUTC, startOfDayUTC, startOfDayUTC);
+      } else if (endOfDayUTC) {
+        conditions.push(`(invited_at IS NOT NULL AND invited_at <= ?)`);
+        conditions.push(`(connected_at IS NOT NULL AND connected_at <= ?)`);
+        conditions.push(`(replied_at IS NOT NULL AND replied_at <= ?)`);
+        dateParams.push(endOfDayUTC, endOfDayUTC, endOfDayUTC);
+      }
+      
+      if (conditions.length > 0) {
+        dateWhereClause = ` AND (${conditions.join(' OR ')})`;
+      }
+    }
+
+    // Build COUNT conditions that check specific timestamps are in range
+    let invitesCondition = `invited_at IS NOT NULL`;
+    let connectionsCondition = `connected_at IS NOT NULL`;
+    let repliesCondition = `replied_at IS NOT NULL`;
+    
     if (options.start_date) {
       const startOfDay = new Date(options.start_date + 'T00:00:00');
-      dateWhereClause += ` AND (
-        (invited_at IS NOT NULL AND invited_at >= ?) OR
-        (connected_at IS NOT NULL AND connected_at >= ?) OR
-        (replied_at IS NOT NULL AND replied_at >= ?)
-      )`;
-      const startUTC = startOfDay.toISOString();
-      dateParams.push(startUTC, startUTC, startUTC);
+      const startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      invitesCondition += ` AND invited_at >= '${startUTC}'`;
+      connectionsCondition += ` AND connected_at >= '${startUTC}'`;
+      repliesCondition += ` AND replied_at >= '${startUTC}'`;
     }
-
+    
     if (options.end_date) {
       const endOfDay = new Date(options.end_date + 'T23:59:59');
-      dateWhereClause += ` AND (
-        (invited_at IS NOT NULL AND invited_at <= ?) OR
-        (connected_at IS NOT NULL AND connected_at <= ?) OR
-        (replied_at IS NOT NULL AND replied_at <= ?)
-      )`;
-      const endUTC = endOfDay.toISOString();
-      dateParams.push(endUTC, endUTC, endUTC);
+      const endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      invitesCondition += ` AND invited_at <= '${endUTC}'`;
+      connectionsCondition += ` AND connected_at <= '${endUTC}'`;
+      repliesCondition += ` AND replied_at <= '${endUTC}'`;
     }
 
-    // Get actual data from database
+    // Get actual data from database - count by date using the specific timestamp for each metric
+    // We need to union results for each event type to get accurate dates
     const actualData = await db.selectAll(`
       SELECT 
-        DATE(COALESCE(invited_at, connected_at, replied_at)) as date,
-        COUNT(DISTINCT CASE WHEN invited_at IS NOT NULL THEN contact_id END) as invites,
-        COUNT(DISTINCT CASE WHEN connected_at IS NOT NULL THEN contact_id END) as connections,
-        COUNT(DISTINCT CASE WHEN replied_at IS NOT NULL THEN contact_id END) as replies
-      FROM events
-      WHERE campaign_id = ?
-      AND (invited_at IS NOT NULL OR connected_at IS NOT NULL OR replied_at IS NOT NULL)
-      ${dateWhereClause}
-      GROUP BY DATE(COALESCE(invited_at, connected_at, replied_at))
+        date,
+        SUM(invites) as invites,
+        SUM(connections) as connections,
+        SUM(replies) as replies
+      FROM (
+        SELECT 
+          DATE(invited_at) as date,
+          COUNT(DISTINCT CASE WHEN ${invitesCondition} THEN contact_id END) as invites,
+          0 as connections,
+          0 as replies
+        FROM events
+        WHERE campaign_id = ?
+        AND ${invitesCondition}
+        GROUP BY DATE(invited_at)
+        
+        UNION ALL
+        
+        SELECT 
+          DATE(connected_at) as date,
+          0 as invites,
+          COUNT(DISTINCT CASE WHEN ${connectionsCondition} THEN contact_id END) as connections,
+          0 as replies
+        FROM events
+        WHERE campaign_id = ?
+        AND ${connectionsCondition}
+        GROUP BY DATE(connected_at)
+        
+        UNION ALL
+        
+        SELECT 
+          DATE(replied_at) as date,
+          0 as invites,
+          0 as connections,
+          COUNT(DISTINCT CASE WHEN ${repliesCondition} THEN contact_id END) as replies
+        FROM events
+        WHERE campaign_id = ?
+        AND ${repliesCondition}
+        GROUP BY DATE(replied_at)
+      ) combined
+      GROUP BY date
       ORDER BY date ASC
-    `, [campaignId, ...dateParams]);
+    `, [campaignId, campaignId, campaignId]);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
