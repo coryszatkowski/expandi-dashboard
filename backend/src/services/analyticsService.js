@@ -387,29 +387,54 @@ class AnalyticsService {
       }
     }
 
-    // Build date conditions for each metric type using parameterized queries
-    const timelineParams = [];
-    let invitesWhere = 'invited_at IS NOT NULL';
-    let connectionsWhere = 'connected_at IS NOT NULL';
-    let repliesWhere = 'replied_at IS NOT NULL';
+    // Build date conditions and parameters for each metric type
+    let startUTC = null;
+    let endUTC = null;
     
     if (options.start_date) {
       const startOfDay = new Date(options.start_date + 'T00:00:00');
-      const startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      invitesWhere += ' AND invited_at >= ?';
-      connectionsWhere += ' AND connected_at >= ?';
-      repliesWhere += ' AND replied_at >= ?';
-      timelineParams.push(startUTC, startUTC, startUTC);
+      startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
     }
     
     if (options.end_date) {
       const endOfDay = new Date(options.end_date + 'T23:59:59');
-      const endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+    }
+
+    // Build WHERE clauses for each UNION query
+    let invitesWhere = 'invited_at IS NOT NULL';
+    let connectionsWhere = 'connected_at IS NOT NULL';
+    let repliesWhere = 'replied_at IS NOT NULL';
+    
+    if (startUTC) {
+      invitesWhere += ' AND invited_at >= ?';
+      connectionsWhere += ' AND connected_at >= ?';
+      repliesWhere += ' AND replied_at >= ?';
+    }
+    
+    if (endUTC) {
       invitesWhere += ' AND invited_at <= ?';
       connectionsWhere += ' AND connected_at <= ?';
       repliesWhere += ' AND replied_at <= ?';
-      timelineParams.push(endUTC, endUTC, endUTC);
     }
+
+    // Build parameter array in correct order: each UNION query gets campaignIds + its date params
+    const allParams = [];
+    
+    // First UNION query parameters
+    allParams.push(...campaignIds);
+    if (startUTC) allParams.push(startUTC);
+    if (endUTC) allParams.push(endUTC);
+    
+    // Second UNION query parameters
+    allParams.push(...campaignIds);
+    if (startUTC) allParams.push(startUTC);
+    if (endUTC) allParams.push(endUTC);
+    
+    // Third UNION query parameters
+    allParams.push(...campaignIds);
+    if (startUTC) allParams.push(startUTC);
+    if (endUTC) allParams.push(endUTC);
 
     // Get actual data from database - count by date using the specific timestamp for each metric
     // We need to union results for each event type to get accurate dates
@@ -456,7 +481,7 @@ class AnalyticsService {
       ) combined
       GROUP BY date
       ORDER BY date ASC
-    `, [...campaignIds, ...timelineParams, ...campaignIds, ...timelineParams, ...campaignIds, ...timelineParams]);
+    `, allParams);
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
