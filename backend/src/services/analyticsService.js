@@ -1042,7 +1042,7 @@ class AnalyticsService {
     const contactTagsMap = await Tag.getForContactsInCampaign(campaignId);
 
     // For each contact, get their latest timestamps
-    const contactsWithStatus = [];
+    let contactsWithStatus = [];
     for (const contact of contacts) {
       // Skip if contact_id is missing
       if (!contact.contact_id) {
