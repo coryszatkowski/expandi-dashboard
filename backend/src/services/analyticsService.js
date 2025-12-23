@@ -1123,9 +1123,27 @@ class AnalyticsService {
       });
     }
     
-    // Apply Status Filtering (in memory since status is derived)
+    // Apply Status Filtering - filter by actual events (invited, connected, replied)
+    // rather than derived status, so filtering shows all contacts at that stage
+    // regardless of whether they've progressed further
     if (statusFilter && statusFilter !== 'All') {
-      contactsWithStatus = contactsWithStatus.filter(c => c.conversation_status === statusFilter);
+      switch (statusFilter) {
+        case 'Invited':
+          // Show all contacts who have been invited (regardless of connection/reply status)
+          contactsWithStatus = contactsWithStatus.filter(c => c.invited);
+          break;
+        case 'Connected':
+          // Show all contacts who have connected (regardless of reply status)
+          contactsWithStatus = contactsWithStatus.filter(c => c.connected);
+          break;
+        case 'Replied':
+          // Show all contacts who have replied
+          contactsWithStatus = contactsWithStatus.filter(c => c.replied);
+          break;
+        default:
+          // For backward compatibility, fall back to conversation_status matching
+          contactsWithStatus = contactsWithStatus.filter(c => c.conversation_status === statusFilter);
+      }
     }
 
     // Apply Sorting (in memory since status/dates are derived)

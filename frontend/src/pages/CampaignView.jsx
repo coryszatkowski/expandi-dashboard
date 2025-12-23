@@ -393,11 +393,10 @@ export default function CampaignView() {
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                   >
-                    <option value="All">All Statuses</option>
+                    <option value="All">All Contacts</option>
+                    <option value="Invited">Invited</option>
+                    <option value="Connected">Connected</option>
                     <option value="Replied">Replied</option>
-                    <option value="Awaiting Reply">Awaiting Reply</option>
-                    <option value="Pending Connection">Pending Connection</option>
-                    <option value="Not Invited">Not Invited</option>
                   </select>
                 </div>
 
