@@ -167,12 +167,12 @@ class AnalyticsService {
       return this.emptyKPIs();
     }
 
-    // Get aggregate counts based on event types
+    // Get aggregate counts based on event types - use DISTINCT for replies
     const counts = await db.selectOne(`
       SELECT 
         COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
         COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
-        COUNT(CASE WHEN event_type = 'contact_replied' THEN 1 END) as replies
+        COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
       ${whereClause}
@@ -204,7 +204,7 @@ class AnalyticsService {
       SELECT 
         COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
         COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
-        COUNT(CASE WHEN event_type = 'contact_replied' THEN 1 END) as replies
+        COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
       FROM events
       WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
       ${whereClause}
@@ -229,7 +229,7 @@ class AnalyticsService {
       SELECT 
         COUNT(CASE WHEN event_type = 'invite_sent' THEN 1 END) as invites_sent,
         COUNT(CASE WHEN event_type = 'connection_accepted' THEN 1 END) as connections,
-        COUNT(CASE WHEN event_type = 'contact_replied' THEN 1 END) as replies
+        COUNT(DISTINCT CASE WHEN event_type = 'contact_replied' THEN contact_id END) as replies
       FROM events
       WHERE campaign_id = ?
       ${whereClause}
@@ -627,7 +627,34 @@ class AnalyticsService {
    * @returns {Array} Array of contact objects with progress status
    */
   static async getCampaignContacts(campaignId, options = {}) {
-    const { search, status: statusFilter, sortBy, sortOrder } = options;
+    const { search, status: statusFilter, sortBy, sortOrder, start_date, end_date } = options;
+
+    // Build date filter clause (matching timeline approach - check if any timestamp is in range)
+    let dateWhereClause = '';
+    const dateParams = [];
+    
+    if (start_date) {
+      const startOfDay = new Date(start_date + 'T00:00:00');
+      const startUTC = startOfDay.toISOString();
+      dateWhereClause += ` AND (
+        (invited_at IS NOT NULL AND invited_at >= ?) OR
+        (connected_at IS NOT NULL AND connected_at >= ?) OR
+        (replied_at IS NOT NULL AND replied_at >= ?)
+      )`;
+      dateParams.push(startUTC, startUTC, startUTC);
+    }
+
+    if (end_date) {
+      const endOfDay = new Date(end_date + 'T23:59:59');
+      const endUTC = endOfDay.toISOString();
+      const endClause = ` AND (
+        (invited_at IS NOT NULL AND invited_at <= ?) OR
+        (connected_at IS NOT NULL AND connected_at <= ?) OR
+        (replied_at IS NOT NULL AND replied_at <= ?)
+      )`;
+      dateWhereClause += endClause;
+      dateParams.push(endUTC, endUTC, endUTC);
+    }
 
     // Get all unique contacts for this campaign
     // Base query
@@ -674,46 +701,104 @@ class AnalyticsService {
     // For each contact, get their progress status
     let contactsWithStatus = [];
     for (const contact of contacts) {
-      // Get the latest event for this contact in this campaign
-      const latestEvent = await db.selectOne(`
-        SELECT 
-          invited_at,
-          connected_at,
-          replied_at,
-          conversation_status
-        FROM events 
-        WHERE campaign_id = ? AND contact_id = ?
-        ORDER BY created_at DESC
-        LIMIT 1
-      `, [campaignId, contact.contact_id]);
-      
       // Get the invite timestamp from the invite_sent event specifically
+      const inviteEventParams = [campaignId, contact.contact_id];
+      let inviteDateFilter = '';
+      if (start_date || end_date) {
+        inviteDateFilter = ' AND (';
+        if (start_date) {
+          const startOfDay = new Date(start_date + 'T00:00:00');
+          const startUTC = startOfDay.toISOString();
+          inviteDateFilter += `invited_at >= ?`;
+          inviteEventParams.push(startUTC);
+        }
+        if (end_date) {
+          const endOfDay = new Date(end_date + 'T23:59:59');
+          const endUTC = endOfDay.toISOString();
+          if (start_date) inviteDateFilter += ' AND ';
+          inviteDateFilter += `invited_at <= ?`;
+          inviteEventParams.push(endUTC);
+        }
+        inviteDateFilter += ')';
+      }
+      
       const inviteEvent = await db.selectOne(`
         SELECT invited_at
         FROM events 
-        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'invite_sent'
+        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'invite_sent' ${inviteDateFilter}
         ORDER BY created_at DESC
         LIMIT 1
-      `, [campaignId, contact.contact_id]);
+      `, inviteEventParams);
       
       // Get the connection timestamp from the connection_accepted event specifically
+      const connectionEventParams = [campaignId, contact.contact_id];
+      let connectionDateFilter = '';
+      if (start_date || end_date) {
+        connectionDateFilter = ' AND (';
+        if (start_date) {
+          const startOfDay = new Date(start_date + 'T00:00:00');
+          const startUTC = startOfDay.toISOString();
+          connectionDateFilter += `connected_at >= ?`;
+          connectionEventParams.push(startUTC);
+        }
+        if (end_date) {
+          const endOfDay = new Date(end_date + 'T23:59:59');
+          const endUTC = endOfDay.toISOString();
+          if (start_date) connectionDateFilter += ' AND ';
+          connectionDateFilter += `connected_at <= ?`;
+          connectionEventParams.push(endUTC);
+        }
+        connectionDateFilter += ')';
+      }
+      
       const connectionEvent = await db.selectOne(`
         SELECT connected_at
         FROM events 
-        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'connection_accepted'
+        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'connection_accepted' ${connectionDateFilter}
         ORDER BY created_at DESC
         LIMIT 1
-      `, [campaignId, contact.contact_id]);
+      `, connectionEventParams);
       
       // Get the reply status from any event (not just latest)
+      const replyEventParams = [campaignId, contact.contact_id];
+      let replyDateFilter = '';
+      if (start_date || end_date) {
+        replyDateFilter = ' AND (';
+        if (start_date) {
+          const startOfDay = new Date(start_date + 'T00:00:00');
+          const startUTC = startOfDay.toISOString();
+          replyDateFilter += `replied_at >= ?`;
+          replyEventParams.push(startUTC);
+        }
+        if (end_date) {
+          const endOfDay = new Date(end_date + 'T23:59:59');
+          const endUTC = endOfDay.toISOString();
+          if (start_date) replyDateFilter += ' AND ';
+          replyDateFilter += `replied_at <= ?`;
+          replyEventParams.push(endUTC);
+        }
+        replyDateFilter += ')';
+      }
+      
       const replyEvent = await db.selectOne(`
         SELECT replied_at, conversation_status
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? 
-        AND (replied_at IS NOT NULL OR conversation_status = 'Replied')
+        AND (replied_at IS NOT NULL OR conversation_status = 'Replied') ${replyDateFilter}
         ORDER BY created_at DESC
         LIMIT 1
-      `, [campaignId, contact.contact_id]);
+      `, replyEventParams);
+      
+      // Only include contact if they have at least one event in the date range
+      // OR if no date filter is applied (show all contacts)
+      const hasEventInRange = !start_date && !end_date || 
+        inviteEvent?.invited_at || 
+        connectionEvent?.connected_at || 
+        replyEvent?.replied_at;
+      
+      if (!hasEventInRange) {
+        continue; // Skip this contact if no events in date range
+      }
       
       // Determine the appropriate status based on progress
       let status;
