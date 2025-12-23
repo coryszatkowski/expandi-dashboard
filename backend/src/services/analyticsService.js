@@ -261,15 +261,17 @@ class AnalyticsService {
       connectionsParams.push(endUTC);
     }
 
-    const repliesParams = [campaignId];
-    let repliesWhere = 'replied_at IS NOT NULL';
+    // For replies, we need to count only the FIRST reply per contact
+    // Build the subquery to get first reply per contact, then filter by date
+    const repliesSubqueryParams = [campaignId];
+    let repliesDateFilter = '';
     if (startUTC) {
-      repliesWhere += ' AND replied_at >= ?';
-      repliesParams.push(startUTC);
+      repliesDateFilter += ' AND first_replied_at >= ?';
+      repliesSubqueryParams.push(startUTC);
     }
     if (endUTC) {
-      repliesWhere += ' AND replied_at <= ?';
-      repliesParams.push(endUTC);
+      repliesDateFilter += ' AND first_replied_at <= ?';
+      repliesSubqueryParams.push(endUTC);
     }
 
     // Query each metric separately to count distinct contacts
@@ -288,12 +290,17 @@ class AnalyticsService {
         AND ${connectionsWhere}
       `, connectionsParams),
       
+      // Count only the FIRST reply per contact (earliest replied_at)
       db.selectOne(`
-        SELECT COUNT(DISTINCT contact_id) as count
-        FROM events
-        WHERE campaign_id = ?
-        AND ${repliesWhere}
-      `, repliesParams)
+        SELECT COUNT(*) as count
+        FROM (
+          SELECT contact_id, MIN(replied_at) as first_replied_at
+          FROM events
+          WHERE campaign_id = ? AND replied_at IS NOT NULL
+          GROUP BY contact_id
+        ) first_replies
+        WHERE 1=1 ${repliesDateFilter}
+      `, repliesSubqueryParams)
     ]);
 
     const counts = {
@@ -428,14 +435,15 @@ class AnalyticsService {
       connectionsParams.push(endUTC);
     }
 
+    // For replies, we need to count only the FIRST reply per contact
     const repliesParams = [...campaignIds];
-    let repliesWhere = 'replied_at IS NOT NULL';
+    let repliesDateFilter = '';
     if (startUTC) {
-      repliesWhere += ' AND replied_at >= ?';
+      repliesDateFilter += ' AND first_replied_at >= ?';
       repliesParams.push(startUTC);
     }
     if (endUTC) {
-      repliesWhere += ' AND replied_at <= ?';
+      repliesDateFilter += ' AND first_replied_at <= ?';
       repliesParams.push(endUTC);
     }
 
@@ -461,14 +469,19 @@ class AnalyticsService {
         GROUP BY ${dateExtractConn}
         ORDER BY date ASC
       `, connectionsParams),
+      // Count only the FIRST reply per contact (earliest replied_at)
       db.selectAll(`
         SELECT 
-          ${dateExtractRepl} as date,
-          COUNT(DISTINCT contact_id) as replies
-        FROM events
-        WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND ${repliesWhere}
-        GROUP BY ${dateExtractRepl}
+          ${isPostgreSQL ? '(first_replied_at::date)' : 'DATE(first_replied_at)'} as date,
+          COUNT(*) as replies
+        FROM (
+          SELECT contact_id, MIN(replied_at) as first_replied_at
+          FROM events
+          WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')}) AND replied_at IS NOT NULL
+          GROUP BY contact_id
+        ) first_replies
+        WHERE 1=1 ${repliesDateFilter}
+        GROUP BY ${isPostgreSQL ? '(first_replied_at::date)' : 'DATE(first_replied_at)'}
         ORDER BY date ASC
       `, repliesParams)
     ]);
@@ -630,14 +643,15 @@ class AnalyticsService {
       connectionsParams.push(endUTC);
     }
 
+    // For replies, we need to count only the FIRST reply per contact
     const repliesParams = [campaignId];
-    let repliesWhere = 'replied_at IS NOT NULL';
+    let repliesDateFilter = '';
     if (startUTC) {
-      repliesWhere += ' AND replied_at >= ?';
+      repliesDateFilter += ' AND first_replied_at >= ?';
       repliesParams.push(startUTC);
     }
     if (endUTC) {
-      repliesWhere += ' AND replied_at <= ?';
+      repliesDateFilter += ' AND first_replied_at <= ?';
       repliesParams.push(endUTC);
     }
 
@@ -663,14 +677,19 @@ class AnalyticsService {
         GROUP BY ${dateExtractConn}
         ORDER BY date ASC
       `, connectionsParams),
+      // Count only the FIRST reply per contact (earliest replied_at)
       db.selectAll(`
         SELECT 
-          ${dateExtractRepl} as date,
-          COUNT(DISTINCT contact_id) as replies
-        FROM events
-        WHERE campaign_id = ?
-        AND ${repliesWhere}
-        GROUP BY ${dateExtractRepl}
+          ${isPostgreSQL ? '(first_replied_at::date)' : 'DATE(first_replied_at)'} as date,
+          COUNT(*) as replies
+        FROM (
+          SELECT contact_id, MIN(replied_at) as first_replied_at
+          FROM events
+          WHERE campaign_id = ? AND replied_at IS NOT NULL
+          GROUP BY contact_id
+        ) first_replies
+        WHERE 1=1 ${repliesDateFilter}
+        GROUP BY ${isPostgreSQL ? '(first_replied_at::date)' : 'DATE(first_replied_at)'}
         ORDER BY date ASC
       `, repliesParams)
     ]);
@@ -1041,17 +1060,18 @@ class AnalyticsService {
         LIMIT 1
       `, [campaignId, contact.contact_id]);
       
-      const latestReply = await db.selectOne(`
+      // Get the FIRST reply (earliest timestamp), not the latest
+      const firstReply = await db.selectOne(`
         SELECT replied_at, conversation_status
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? 
         AND (replied_at IS NOT NULL OR conversation_status = 'Replied')
-        ORDER BY COALESCE(replied_at, created_at) DESC
+        ORDER BY COALESCE(replied_at, created_at) ASC
         LIMIT 1
       `, [campaignId, contact.contact_id]);
       
       // Determine status
-      const hasReplied = latestReply?.replied_at || latestReply?.conversation_status === 'Replied';
+      const hasReplied = firstReply?.replied_at || firstReply?.conversation_status === 'Replied';
       let status;
       if (hasReplied) {
         status = 'Replied';
@@ -1075,7 +1095,7 @@ class AnalyticsService {
         replied: hasReplied,
         invited_at: latestInvite?.invited_at || null,
         connected_at: latestConnection?.connected_at || null,
-        replied_at: latestReply?.replied_at || null,
+        replied_at: firstReply?.replied_at || null,
         conversation_status: status,
         tags: contactTagsMap[contact.contact_id] || []
       });
