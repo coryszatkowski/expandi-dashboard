@@ -174,19 +174,26 @@ class Campaign {
     // First try to find by campaign_instance (for exact matches)
     const existingByInstance = await this.findByCampaignInstance(data.campaign_instance);
     if (existingByInstance) {
+      // Preserve existing started_at - don't overwrite with new webhook timestamp
       return existingByInstance;
     }
     
     // Then try to find by profile_id + campaign_name (for logical deduplication)
     const existingByName = await this.findByProfileAndName(data.profile_id, data.campaign_name);
     if (existingByName) {
-      // Update the existing campaign with the new campaign_instance and started_at
-      return await this.update(existingByName.id, {
-        campaign_instance: data.campaign_instance,
-        started_at: data.started_at
-      });
+      // Update the existing campaign with the new campaign_instance
+      // BUT preserve the existing started_at (first webhook's timestamp)
+      const updateData = {
+        campaign_instance: data.campaign_instance
+      };
+      // Only set started_at if it's null/invalid (shouldn't happen, but safety check)
+      if (!existingByName.started_at || isNaN(new Date(existingByName.started_at).getTime())) {
+        updateData.started_at = data.started_at;
+      }
+      return await this.update(existingByName.id, updateData);
     }
     
+    // Create new campaign with the webhook's timestamp as started_at
     return await this.create(data);
   }
 

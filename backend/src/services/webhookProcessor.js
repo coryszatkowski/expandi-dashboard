@@ -97,7 +97,7 @@ class WebhookProcessor {
 
       // 2. Find or create Campaign
       console.log(`🔍 [DEBUG] Processing campaign for profileId: ${profile.id}`);
-      const campaign = await this.processCampaign(messengerData, profile.id);
+      const campaign = await this.processCampaign(messengerData, profile.id, payload);
       console.log(`🔍 [DEBUG] Campaign result:`, campaign ? { id: campaign.id, campaign_name: campaign.campaign_name } : 'undefined');
       
       if (!campaign) {
@@ -222,9 +222,10 @@ class WebhookProcessor {
    * Process Campaign from webhook data
    * @param {Object} messengerData - Messenger data from webhook
    * @param {string} profileId - Profile UUID
+   * @param {Object} payload - Full webhook payload (for timestamp extraction)
    * @returns {Object} Campaign
    */
-  static async processCampaign(messengerData, profileId) {
+  static async processCampaign(messengerData, profileId, payload = null) {
     const campaignInstance = messengerData.campaign_instance;
     
     if (!campaignInstance) {
@@ -234,9 +235,32 @@ class WebhookProcessor {
     // Parse campaign instance
     const parsed = Campaign.parseCampaignInstance(campaignInstance);
     
-    // Extract start date from campaign_instance (YYYY-MM-DD format)
-    // Store as local date to avoid timezone conversion issues
-    const startedAt = parsed.date ? `${parsed.date}T00:00:00` : new Date().toISOString();
+    // Extract start date from webhook's fired_datetime (first webhook for this campaign)
+    // Convert webhook timestamp format "2025-10-14 17:50:33.104655+00:00" to ISO 8601
+    let startedAt = new Date().toISOString(); // Fallback to current time
+    
+    if (payload?.hook?.fired_datetime) {
+      try {
+        // Convert "2025-10-14 17:50:33.104655+00:00" to ISO 8601 format
+        const webhookTimestamp = payload.hook.fired_datetime;
+        // Replace space with T and convert timezone format from +00:00 to +0000 or Z
+        let isoTimestamp = webhookTimestamp.replace(' ', 'T');
+        // Handle timezone: convert +00:00 to Z (UTC) or +HH:MM to +HHMM
+        if (isoTimestamp.endsWith('+00:00')) {
+          isoTimestamp = isoTimestamp.replace('+00:00', 'Z');
+        } else {
+          // Replace timezone colon: +05:30 -> +0530
+          isoTimestamp = isoTimestamp.replace(/([+-]\d{2}):(\d{2})$/, '$1$2');
+        }
+        // Parse and convert to ISO 8601
+        const date = new Date(isoTimestamp);
+        if (!isNaN(date.getTime())) {
+          startedAt = date.toISOString();
+        }
+      } catch (error) {
+        console.warn('Failed to parse webhook fired_datetime, using fallback:', error);
+      }
+    }
 
     // Find or create campaign
     const campaign = await Campaign.findOrCreate({
@@ -332,8 +356,14 @@ class WebhookProcessor {
       finalContactId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
     }
 
-    // REMOVED: No more duplicate event checking
-    // Process every webhook event - this allows us to track all interactions
+    // For reply events, check if contact has already replied
+    if (eventType === 'contact_replied') {
+      const existingReply = await Event.findByContactCampaignAndType(campaignId, finalContactId, 'contact_replied');
+      if (existingReply) {
+        console.log(`⏭️  Skipping duplicate reply webhook for contact ${finalContactId} in campaign ${campaignId} - already replied`);
+        return existingReply; // Return existing event instead of creating a new one
+      }
+    }
 
     // Extract timestamps based on event type
     const eventData = {
@@ -352,7 +382,7 @@ class WebhookProcessor {
       eventData.replied_at = fullPayload.hook?.fired_datetime || new Date().toISOString();
     }
 
-    // Create new event (no duplicate checking)
+    // Create new event
     const event = await Event.create(eventData);
     console.log(`✅ New event created: ${eventType} for contact ${finalContactId}`);
 
