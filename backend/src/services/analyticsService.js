@@ -469,14 +469,13 @@ class AnalyticsService {
       
       const startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
       
+      // Filter each event type by its corresponding timestamp
       whereClause += ` AND (
-        CASE 
-          WHEN event_type = 'invite_sent' THEN invited_at
-          WHEN event_type = 'connection_accepted' THEN connected_at
-          WHEN event_type = 'contact_replied' THEN replied_at
-        END
-      ) >= ?`;
-      params.push(startOfDayUTC);
+        (event_type = 'invite_sent' AND invited_at >= ?) OR
+        (event_type = 'connection_accepted' AND connected_at >= ?) OR
+        (event_type = 'contact_replied' AND replied_at >= ?)
+      )`;
+      params.push(startOfDayUTC, startOfDayUTC, startOfDayUTC);
     }
 
     if (options.end_date) {
@@ -497,14 +496,13 @@ class AnalyticsService {
       
       const endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
       
+      // Filter each event type by its corresponding timestamp
       whereClause += ` AND (
-        CASE 
-          WHEN event_type = 'invite_sent' THEN invited_at
-          WHEN event_type = 'connection_accepted' THEN connected_at
-          WHEN event_type = 'contact_replied' THEN replied_at
-        END
-      ) <= ?`;
-      params.push(endOfDayUTC);
+        (event_type = 'invite_sent' AND invited_at <= ?) OR
+        (event_type = 'connection_accepted' AND connected_at <= ?) OR
+        (event_type = 'contact_replied' AND replied_at <= ?)
+      )`;
+      params.push(endOfDayUTC, endOfDayUTC, endOfDayUTC);
     }
 
     return { whereClause, params };
