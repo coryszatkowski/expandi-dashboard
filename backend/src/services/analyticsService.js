@@ -277,16 +277,49 @@ class AnalyticsService {
     // campaign_id = ? appears last in the SQL (in the WHERE clause)
     allParams.push(campaignId);
 
-    const counts = await db.selectOne(`
+    const query = `
       SELECT 
         COUNT(CASE WHEN ${invitesCondition} THEN 1 END) as invites_sent,
         COUNT(CASE WHEN ${connectionsCondition} THEN 1 END) as connections,
         COUNT(DISTINCT CASE WHEN ${repliesCondition} THEN contact_id END) as replies
       FROM events
       WHERE campaign_id = ?
-    `, allParams);
+    `;
 
-    return this.calculateRates(counts);
+    // DEBUG: Log query, parameters, and results
+    console.log('=== getCampaignKPIs DEBUG ===');
+    console.log('campaignId:', campaignId);
+    console.log('options:', JSON.stringify(options, null, 2));
+    console.log('invitesCondition:', invitesCondition);
+    console.log('connectionsCondition:', connectionsCondition);
+    console.log('repliesCondition:', repliesCondition);
+    console.log('allParams:', JSON.stringify(allParams, null, 2));
+    console.log('SQL Query:', query);
+    
+    // Also get some sample data to see what's actually in the database
+    const sampleEvents = await db.selectAll(`
+      SELECT 
+        event_type,
+        invited_at,
+        connected_at,
+        replied_at,
+        contact_id,
+        created_at
+      FROM events
+      WHERE campaign_id = ?
+      ORDER BY created_at DESC
+      LIMIT 20
+    `, [campaignId]);
+    console.log('Sample events (last 20):', JSON.stringify(sampleEvents, null, 2));
+
+    const counts = await db.selectOne(query, allParams);
+    console.log('Raw counts result:', JSON.stringify(counts, null, 2));
+    
+    const rates = this.calculateRates(counts);
+    console.log('Calculated rates:', JSON.stringify(rates, null, 2));
+    console.log('=== END getCampaignKPIs DEBUG ===');
+
+    return rates;
   }
 
   /**
