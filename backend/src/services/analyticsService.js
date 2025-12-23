@@ -282,6 +282,8 @@ class AnalyticsService {
     }
 
     // Build COUNT conditions that check both event_type AND specific timestamp
+    // Use parameterized queries for date conditions
+    const countParams = [];
     let invitesCondition = `event_type = 'invite_sent'`;
     let connectionsCondition = `event_type = 'connection_accepted'`;
     let repliesCondition = `event_type = 'contact_replied'`;
@@ -291,9 +293,10 @@ class AnalyticsService {
         ? new Date(options.start_date)
         : new Date(options.start_date + 'T00:00:00');
       const startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      invitesCondition += ` AND invited_at >= '${startUTC}'`;
-      connectionsCondition += ` AND connected_at >= '${startUTC}'`;
-      repliesCondition += ` AND replied_at >= '${startUTC}'`;
+      invitesCondition += ` AND invited_at >= ?`;
+      connectionsCondition += ` AND connected_at >= ?`;
+      repliesCondition += ` AND replied_at >= ?`;
+      countParams.push(startUTC, startUTC, startUTC);
     }
     
     if (options.end_date) {
@@ -301,9 +304,10 @@ class AnalyticsService {
         ? new Date(options.end_date)
         : new Date(options.end_date + 'T23:59:59');
       const endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
-      invitesCondition += ` AND invited_at <= '${endUTC}'`;
-      connectionsCondition += ` AND connected_at <= '${endUTC}'`;
-      repliesCondition += ` AND replied_at <= '${endUTC}'`;
+      invitesCondition += ` AND invited_at <= ?`;
+      connectionsCondition += ` AND connected_at <= ?`;
+      repliesCondition += ` AND replied_at <= ?`;
+      countParams.push(endUTC, endUTC, endUTC);
     }
 
     const counts = await db.selectOne(`
@@ -314,7 +318,7 @@ class AnalyticsService {
       FROM events
       WHERE campaign_id = ?
       ${dateWhereClause}
-    `, [campaignId, ...dateParams]);
+    `, [campaignId, ...dateParams, ...countParams]);
 
     return this.calculateRates(counts);
   }
@@ -850,99 +854,64 @@ class AnalyticsService {
     let contactsWithStatus = [];
     for (const contact of contacts) {
       // Get the invite timestamp from the invite_sent event specifically
-      const inviteEventParams = [campaignId, contact.contact_id];
-      let inviteDateFilter = '';
-      if (start_date || end_date) {
-        inviteDateFilter = ' AND (';
-        if (start_date) {
-          const startOfDay = new Date(start_date + 'T00:00:00');
-          const startUTC = startOfDay.toISOString();
-          inviteDateFilter += `invited_at >= ?`;
-          inviteEventParams.push(startUTC);
-        }
-        if (end_date) {
-          const endOfDay = new Date(end_date + 'T23:59:59');
-          const endUTC = endOfDay.toISOString();
-          if (start_date) inviteDateFilter += ' AND ';
-          inviteDateFilter += `invited_at <= ?`;
-          inviteEventParams.push(endUTC);
-        }
-        inviteDateFilter += ')';
-      }
-      
+      // Don't filter by date range - show all timestamps for contacts that have events in range
       const inviteEvent = await db.selectOne(`
         SELECT invited_at
         FROM events 
-        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'invite_sent' ${inviteDateFilter}
+        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'invite_sent'
         ORDER BY created_at DESC
         LIMIT 1
-      `, inviteEventParams);
+      `, [campaignId, contact.contact_id]);
       
       // Get the connection timestamp from the connection_accepted event specifically
-      const connectionEventParams = [campaignId, contact.contact_id];
-      let connectionDateFilter = '';
-      if (start_date || end_date) {
-        connectionDateFilter = ' AND (';
-        if (start_date) {
-          const startOfDay = new Date(start_date + 'T00:00:00');
-          const startUTC = startOfDay.toISOString();
-          connectionDateFilter += `connected_at >= ?`;
-          connectionEventParams.push(startUTC);
-        }
-        if (end_date) {
-          const endOfDay = new Date(end_date + 'T23:59:59');
-          const endUTC = endOfDay.toISOString();
-          if (start_date) connectionDateFilter += ' AND ';
-          connectionDateFilter += `connected_at <= ?`;
-          connectionEventParams.push(endUTC);
-        }
-        connectionDateFilter += ')';
-      }
-      
       const connectionEvent = await db.selectOne(`
         SELECT connected_at
         FROM events 
-        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'connection_accepted' ${connectionDateFilter}
+        WHERE campaign_id = ? AND contact_id = ? AND event_type = 'connection_accepted'
         ORDER BY created_at DESC
         LIMIT 1
-      `, connectionEventParams);
+      `, [campaignId, contact.contact_id]);
       
       // Get the reply status from any event (not just latest)
-      const replyEventParams = [campaignId, contact.contact_id];
-      let replyDateFilter = '';
-      if (start_date || end_date) {
-        replyDateFilter = ' AND (';
-        if (start_date) {
-          const startOfDay = new Date(start_date + 'T00:00:00');
-          const startUTC = startOfDay.toISOString();
-          replyDateFilter += `replied_at >= ?`;
-          replyEventParams.push(startUTC);
-        }
-        if (end_date) {
-          const endOfDay = new Date(end_date + 'T23:59:59');
-          const endUTC = endOfDay.toISOString();
-          if (start_date) replyDateFilter += ' AND ';
-          replyDateFilter += `replied_at <= ?`;
-          replyEventParams.push(endUTC);
-        }
-        replyDateFilter += ')';
-      }
-      
       const replyEvent = await db.selectOne(`
         SELECT replied_at, conversation_status
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? 
-        AND (replied_at IS NOT NULL OR conversation_status = 'Replied') ${replyDateFilter}
+        AND (replied_at IS NOT NULL OR conversation_status = 'Replied')
         ORDER BY created_at DESC
         LIMIT 1
-      `, replyEventParams);
+      `, [campaignId, contact.contact_id]);
       
-      // Only include contact if they have at least one event in the date range
-      // OR if no date filter is applied (show all contacts)
-      const hasEventInRange = !start_date && !end_date || 
-        inviteEvent?.invited_at || 
-        connectionEvent?.connected_at || 
-        replyEvent?.replied_at;
+      // Check if contact has at least one event in the date range
+      // We need to check the actual timestamps against the date range
+      let hasEventInRange = !start_date && !end_date;
+      
+      if (!hasEventInRange) {
+        // Check if any timestamp falls within the date range
+        if (inviteEvent?.invited_at) {
+          const invitedDate = new Date(inviteEvent.invited_at);
+          if ((!start_date || invitedDate >= new Date(start_date + 'T00:00:00')) &&
+              (!end_date || invitedDate <= new Date(end_date + 'T23:59:59'))) {
+            hasEventInRange = true;
+          }
+        }
+        
+        if (!hasEventInRange && connectionEvent?.connected_at) {
+          const connectedDate = new Date(connectionEvent.connected_at);
+          if ((!start_date || connectedDate >= new Date(start_date + 'T00:00:00')) &&
+              (!end_date || connectedDate <= new Date(end_date + 'T23:59:59'))) {
+            hasEventInRange = true;
+          }
+        }
+        
+        if (!hasEventInRange && replyEvent?.replied_at) {
+          const repliedDate = new Date(replyEvent.replied_at);
+          if ((!start_date || repliedDate >= new Date(start_date + 'T00:00:00')) &&
+              (!end_date || repliedDate <= new Date(end_date + 'T23:59:59'))) {
+            hasEventInRange = true;
+          }
+        }
+      }
       
       if (!hasEventInRange) {
         continue; // Skip this contact if no events in date range
