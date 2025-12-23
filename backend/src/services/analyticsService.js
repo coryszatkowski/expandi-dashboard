@@ -387,7 +387,7 @@ class AnalyticsService {
       }
     }
 
-    // Build date conditions and parameters for each metric type
+    // Build date conditions
     let startUTC = null;
     let endUTC = null;
     
@@ -401,40 +401,44 @@ class AnalyticsService {
       endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
     }
 
-    // Build WHERE clauses for each UNION query
-    let invitesWhere = 'invited_at IS NOT NULL';
-    let connectionsWhere = 'connected_at IS NOT NULL';
-    let repliesWhere = 'replied_at IS NOT NULL';
-    
-    if (startUTC) {
-      invitesWhere += ' AND invited_at >= ?';
-      connectionsWhere += ' AND connected_at >= ?';
-      repliesWhere += ' AND replied_at >= ?';
-    }
-    
-    if (endUTC) {
-      invitesWhere += ' AND invited_at <= ?';
-      connectionsWhere += ' AND connected_at <= ?';
-      repliesWhere += ' AND replied_at <= ?';
-    }
-
-    // Build parameter array in correct order: each UNION query gets campaignIds + its date params
+    // Build WHERE clause conditions directly in SQL to avoid parameter binding issues
+    let invitesDateFilter = '';
+    let connectionsDateFilter = '';
+    let repliesDateFilter = '';
     const allParams = [];
     
-    // First UNION query parameters
+    // First UNION query: invites
     allParams.push(...campaignIds);
-    if (startUTC) allParams.push(startUTC);
-    if (endUTC) allParams.push(endUTC);
+    if (startUTC) {
+      invitesDateFilter = ' AND invited_at >= ?';
+      allParams.push(startUTC);
+    }
+    if (endUTC) {
+      invitesDateFilter += ' AND invited_at <= ?';
+      allParams.push(endUTC);
+    }
     
-    // Second UNION query parameters
+    // Second UNION query: connections
     allParams.push(...campaignIds);
-    if (startUTC) allParams.push(startUTC);
-    if (endUTC) allParams.push(endUTC);
+    if (startUTC) {
+      connectionsDateFilter = ' AND connected_at >= ?';
+      allParams.push(startUTC);
+    }
+    if (endUTC) {
+      connectionsDateFilter += ' AND connected_at <= ?';
+      allParams.push(endUTC);
+    }
     
-    // Third UNION query parameters
+    // Third UNION query: replies
     allParams.push(...campaignIds);
-    if (startUTC) allParams.push(startUTC);
-    if (endUTC) allParams.push(endUTC);
+    if (startUTC) {
+      repliesDateFilter = ' AND replied_at >= ?';
+      allParams.push(startUTC);
+    }
+    if (endUTC) {
+      repliesDateFilter += ' AND replied_at <= ?';
+      allParams.push(endUTC);
+    }
 
     // Get actual data from database - count by date using the specific timestamp for each metric
     // We need to union results for each event type to get accurate dates
@@ -452,7 +456,7 @@ class AnalyticsService {
           0 as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND ${invitesWhere}
+        AND invited_at IS NOT NULL${invitesDateFilter}
         GROUP BY DATE(invited_at)
         
         UNION ALL
@@ -464,7 +468,7 @@ class AnalyticsService {
           0 as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND ${connectionsWhere}
+        AND connected_at IS NOT NULL${connectionsDateFilter}
         GROUP BY DATE(connected_at)
         
         UNION ALL
@@ -476,7 +480,7 @@ class AnalyticsService {
           COUNT(DISTINCT contact_id) as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND ${repliesWhere}
+        AND replied_at IS NOT NULL${repliesDateFilter}
         GROUP BY DATE(replied_at)
       ) combined
       GROUP BY date
