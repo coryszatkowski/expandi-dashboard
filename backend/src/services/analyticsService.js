@@ -283,7 +283,15 @@ class AnalyticsService {
 
     // Build COUNT conditions that check both event_type AND specific timestamp
     // Use parameterized queries for date conditions
-    const countParams = [];
+    // IMPORTANT: Parameters must be in the order they appear in the SQL query
+    const allParams = [campaignId]; // First parameter: campaign_id = ?
+    
+    // Add dateParams for dateWhereClause if it exists
+    if (dateWhereClause) {
+      allParams.push(...dateParams);
+    }
+    
+    // Build COUNT conditions with parameterized date filters
     let invitesCondition = `event_type = 'invite_sent'`;
     let connectionsCondition = `event_type = 'connection_accepted'`;
     let repliesCondition = `event_type = 'contact_replied'`;
@@ -296,7 +304,8 @@ class AnalyticsService {
       invitesCondition += ` AND invited_at >= ?`;
       connectionsCondition += ` AND connected_at >= ?`;
       repliesCondition += ` AND replied_at >= ?`;
-      countParams.push(startUTC, startUTC, startUTC);
+      // Add these parameters AFTER the WHERE clause parameters
+      allParams.push(startUTC, startUTC, startUTC);
     }
     
     if (options.end_date) {
@@ -307,7 +316,8 @@ class AnalyticsService {
       invitesCondition += ` AND invited_at <= ?`;
       connectionsCondition += ` AND connected_at <= ?`;
       repliesCondition += ` AND replied_at <= ?`;
-      countParams.push(endUTC, endUTC, endUTC);
+      // Add these parameters AFTER the previous COUNT parameters
+      allParams.push(endUTC, endUTC, endUTC);
     }
 
     const counts = await db.selectOne(`
@@ -318,7 +328,7 @@ class AnalyticsService {
       FROM events
       WHERE campaign_id = ?
       ${dateWhereClause}
-    `, [campaignId, ...dateParams, ...countParams]);
+    `, allParams);
 
     return this.calculateRates(counts);
   }
