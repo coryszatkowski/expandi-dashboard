@@ -6,7 +6,7 @@ import ActivityChart from '../components/ActivityChart';
 import DateRangePicker from '../components/DateRangePicker';
 import Header from '../components/Header';
 import { Send, Users, TrendingUp, MessageCircle, Download, ChevronRight, ArrowLeft } from 'lucide-react';
-import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
+import { subWeeks, startOfWeek, endOfWeek, format } from 'date-fns';
 import { formatDateForBackend } from '../utils/timezone';
 
 export default function ClientDashboard() {
@@ -18,16 +18,37 @@ export default function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Calculate last month date range for initial load
-  const now = new Date();
-  const lastMonth = subMonths(now, 1);
-  const start = startOfMonth(lastMonth);
-  const end = endOfMonth(lastMonth);
+  // Load date range from localStorage or use default (last week)
+  const getInitialDateRange = () => {
+    const saved = localStorage.getItem('dateRange');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Validate the saved range
+        if (parsed.start_date && parsed.end_date) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Error parsing saved date range:', e);
+      }
+    }
+    // Default to last week
+    const now = new Date();
+    const lastWeek = subWeeks(now, 1);
+    const start = startOfWeek(lastWeek, { weekStartsOn: 1 }); // Monday
+    const end = endOfWeek(lastWeek, { weekStartsOn: 1 });
+    return {
+      start_date: formatDateForBackend(start),
+      end_date: formatDateForBackend(end)
+    };
+  };
   
-  const [filters, setFilters] = useState({
-    start_date: formatDateForBackend(start),
-    end_date: formatDateForBackend(end)
-  });
+  const [filters, setFilters] = useState(getInitialDateRange);
+
+  // Save date range to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dateRange', JSON.stringify(filters));
+  }, [filters]);
 
   useEffect(() => {
     loadDashboard();
