@@ -262,6 +262,35 @@ router.use((error, req, res, next) => {
 });
 
 /**
+ * POST /api/admin/campaigns/fix-start-dates
+ * 
+ * Fix all campaigns with invalid start dates by backfilling from events
+ */
+router.post('/campaigns/fix-start-dates', requireAuth, async (req, res) => {
+  try {
+    console.log('🔧 Fixing invalid campaign start dates...');
+    
+    const result = await Campaign.fixAllInvalidStartDates();
+    
+    console.log(`✅ Fixed ${result.fixed} campaigns, skipped ${result.skipped}`);
+    
+    res.json({
+      success: true,
+      message: `Fixed ${result.fixed} campaigns with invalid start dates`,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('Error fixing campaign start dates:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fix campaign start dates',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/admin/backfill/stats/:profileId
  * 
  * Get backfill statistics for a profile

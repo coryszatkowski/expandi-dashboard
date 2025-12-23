@@ -165,6 +165,17 @@ class Campaign {
   }
 
   /**
+   * Check if a date string is valid
+   * @param {string} dateString - Date string to validate
+   * @returns {boolean} True if date is valid
+   */
+  static isValidDate(dateString) {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  }
+
+  /**
    * Find or create campaign by profile_id + campaign_name
    * Useful for webhook processing - prevents duplicate campaigns with same name
    * @param {Object} data - Campaign data
@@ -174,6 +185,18 @@ class Campaign {
     // First try to find by campaign_instance (for exact matches)
     const existingByInstance = await this.findByCampaignInstance(data.campaign_instance);
     if (existingByInstance) {
+      // If existing campaign has invalid date, fix it with the webhook timestamp
+      if (!this.isValidDate(existingByInstance.started_at)) {
+        // Try to backfill from events first, otherwise use webhook timestamp
+        const backfilled = await this.backfillStartDateFromEvents(existingByInstance.id);
+        if (backfilled) {
+          return backfilled;
+        }
+        // Fallback to webhook timestamp
+        return await this.update(existingByInstance.id, {
+          started_at: data.started_at
+        });
+      }
       // Preserve existing started_at - don't overwrite with new webhook timestamp
       return existingByInstance;
     }
@@ -182,19 +205,105 @@ class Campaign {
     const existingByName = await this.findByProfileAndName(data.profile_id, data.campaign_name);
     if (existingByName) {
       // Update the existing campaign with the new campaign_instance
-      // BUT preserve the existing started_at (first webhook's timestamp)
       const updateData = {
         campaign_instance: data.campaign_instance
       };
-      // Only set started_at if it's null/invalid (shouldn't happen, but safety check)
-      if (!existingByName.started_at || isNaN(new Date(existingByName.started_at).getTime())) {
-        updateData.started_at = data.started_at;
+      // Only set started_at if it's null/invalid (fix invalid dates from old logic)
+      if (!this.isValidDate(existingByName.started_at)) {
+        // Try to backfill from events first, otherwise use webhook timestamp
+        const backfilled = await this.backfillStartDateFromEvents(existingByName.id);
+        if (backfilled) {
+          updateData.started_at = backfilled.started_at;
+        } else {
+          updateData.started_at = data.started_at;
+        }
       }
       return await this.update(existingByName.id, updateData);
     }
     
     // Create new campaign with the webhook's timestamp as started_at
     return await this.create(data);
+  }
+
+  /**
+   * Backfill campaign start date from earliest event
+   * Useful for fixing campaigns with invalid start dates
+   * @param {string} campaignId - Campaign UUID
+   * @returns {Object|null} Updated campaign or null if no events found
+   */
+  static async backfillStartDateFromEvents(campaignId) {
+    // Find the earliest event timestamp for this campaign
+    const result = await db.selectOne(`
+      SELECT MIN(earliest) as earliest_date
+      FROM (
+        SELECT created_at as earliest FROM events 
+        WHERE campaign_id = ? AND created_at IS NOT NULL
+        UNION ALL
+        SELECT invited_at as earliest FROM events 
+        WHERE campaign_id = ? AND invited_at IS NOT NULL
+        UNION ALL
+        SELECT connected_at as earliest FROM events 
+        WHERE campaign_id = ? AND connected_at IS NOT NULL
+        UNION ALL
+        SELECT replied_at as earliest FROM events 
+        WHERE campaign_id = ? AND replied_at IS NOT NULL
+      ) all_dates
+    `, [campaignId, campaignId, campaignId, campaignId]);
+    
+    if (result?.earliest_date) {
+      // Convert to ISO 8601 format
+      const earliestDate = new Date(result.earliest_date);
+      if (!isNaN(earliestDate.getTime())) {
+        // Update campaign with earliest event timestamp
+        return await this.update(campaignId, {
+          started_at: earliestDate.toISOString()
+        });
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Fix all campaigns with invalid start dates by backfilling from events
+   * @returns {Object} Results with count of fixed campaigns
+   */
+  static async fixAllInvalidStartDates() {
+    // Get all campaigns
+    const allCampaigns = await db.selectAll(`
+      SELECT id, started_at FROM campaigns
+    `);
+    
+    let fixedCount = 0;
+    let skippedCount = 0;
+    
+    for (const campaign of allCampaigns) {
+      if (!this.isValidDate(campaign.started_at)) {
+        const backfilled = await this.backfillStartDateFromEvents(campaign.id);
+        if (backfilled) {
+          fixedCount++;
+        } else {
+          // If no events found, set to created_at as fallback
+          const campaignWithCreated = await db.selectOne(`
+            SELECT created_at FROM campaigns WHERE id = ?
+          `, [campaign.id]);
+          if (campaignWithCreated?.created_at) {
+            await this.update(campaign.id, {
+              started_at: new Date(campaignWithCreated.created_at).toISOString()
+            });
+            fixedCount++;
+          } else {
+            skippedCount++;
+          }
+        }
+      }
+    }
+    
+    return {
+      total: allCampaigns.length,
+      fixed: fixedCount,
+      skipped: skippedCount
+    };
   }
 
   /**
