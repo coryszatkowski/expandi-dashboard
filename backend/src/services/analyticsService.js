@@ -246,9 +246,9 @@ class AnalyticsService {
       if (isNaN(startOfDay.getTime())) {
         throw new Error(`Invalid start_date: ${options.start_date}`);
       }
-      // Use ISO string format for PostgreSQL timestamp with timezone comparison
-      // PostgreSQL expects timestamps with timezone, so use full ISO format
-      const startUTC = startOfDay.toISOString();
+      // Use space-separated format to match getCampaignTimeline
+      // This ensures consistency between KPI counts and timeline chart
+      const startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
       invitesCondition += ` AND invited_at >= ?`;
       connectionsCondition += ` AND connected_at >= ?`;
       repliesCondition += ` AND replied_at >= ?`;
@@ -266,9 +266,9 @@ class AnalyticsService {
       if (isNaN(endOfDay.getTime())) {
         throw new Error(`Invalid end_date: ${options.end_date}`);
       }
-      // Use ISO string format for PostgreSQL timestamp with timezone comparison
-      // PostgreSQL expects timestamps with timezone, so use full ISO format
-      const endUTC = endOfDay.toISOString();
+      // Use space-separated format to match getCampaignTimeline
+      // This ensures consistency between KPI counts and timeline chart
+      const endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
       invitesCondition += ` AND invited_at <= ?`;
       connectionsCondition += ` AND connected_at <= ?`;
       repliesCondition += ` AND replied_at <= ?`;
