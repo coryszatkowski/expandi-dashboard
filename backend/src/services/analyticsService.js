@@ -354,12 +354,28 @@ class AnalyticsService {
       let endOfDayUTC = null;
       
       if (options.start_date) {
-        const startOfDay = new Date(options.start_date + 'T00:00:00');
+        let startOfDay;
+        if (options.start_date.includes('T')) {
+          startOfDay = new Date(options.start_date);
+        } else {
+          startOfDay = new Date(options.start_date + 'T00:00:00');
+        }
+        if (isNaN(startOfDay.getTime())) {
+          throw new Error(`Invalid start_date: ${options.start_date}`);
+        }
         startOfDayUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
       }
       
       if (options.end_date) {
-        const endOfDay = new Date(options.end_date + 'T23:59:59');
+        let endOfDay;
+        if (options.end_date.includes('T')) {
+          endOfDay = new Date(options.end_date);
+        } else {
+          endOfDay = new Date(options.end_date + 'T23:59:59');
+        }
+        if (isNaN(endOfDay.getTime())) {
+          throw new Error(`Invalid end_date: ${options.end_date}`);
+        }
         endOfDayUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
       }
       
