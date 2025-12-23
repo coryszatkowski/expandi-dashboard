@@ -176,8 +176,54 @@ class Campaign {
   }
 
   /**
+   * Update campaign start date from an event if the event timestamp is earlier
+   * Campaign start dates are always set from the first event
+   * @param {string} campaignId - Campaign UUID
+   * @param {Object} eventData - Event data with timestamps
+   * @returns {Object|null} Updated campaign or null if no update needed
+   */
+  static async updateStartDateFromEvent(campaignId, eventData) {
+    // Get all timestamps from the event
+    const timestamps = [
+      eventData.invited_at,
+      eventData.connected_at,
+      eventData.replied_at,
+      eventData.created_at
+    ].filter(ts => ts); // Filter out null values
+
+    if (timestamps.length === 0) {
+      return null;
+    }
+
+    // Find the earliest timestamp
+    const earliestTimestamp = timestamps.reduce((earliest, current) => {
+      const earliestDate = new Date(earliest);
+      const currentDate = new Date(current);
+      return currentDate < earliestDate ? current : earliest;
+    });
+
+    // Get current campaign
+    const campaign = await this.findById(campaignId);
+    if (!campaign) {
+      return null;
+    }
+
+    // Update if the event timestamp is earlier than current started_at
+    const currentStartedAt = new Date(campaign.started_at);
+    const eventDate = new Date(earliestTimestamp);
+    
+    if (eventDate < currentStartedAt) {
+      return await this.update(campaignId, {
+        started_at: earliestTimestamp
+      });
+    }
+
+    return null;
+  }
+
+  /**
    * Find or create campaign by profile_id + campaign_name
-   * Useful for webhook processing - prevents duplicate campaigns with same name
+   * Campaign start dates are always set from the first event, not from webhook timestamps
    * @param {Object} data - Campaign data
    * @returns {Object} Existing or newly created campaign
    */
@@ -185,19 +231,11 @@ class Campaign {
     // First try to find by campaign_instance (for exact matches)
     const existingByInstance = await this.findByCampaignInstance(data.campaign_instance);
     if (existingByInstance) {
-      // If existing campaign has invalid date, fix it with the webhook timestamp
-      if (!this.isValidDate(existingByInstance.started_at)) {
-        // Try to backfill from events first, otherwise use webhook timestamp
-        const backfilled = await this.backfillStartDateFromEvents(existingByInstance.id);
-        if (backfilled) {
-          return backfilled;
-        }
-        // Fallback to webhook timestamp
-        return await this.update(existingByInstance.id, {
-          started_at: data.started_at
-        });
+      // Always backfill from events to ensure start date is accurate
+      const backfilled = await this.backfillStartDateFromEvents(existingByInstance.id);
+      if (backfilled) {
+        return backfilled;
       }
-      // Preserve existing started_at - don't overwrite with new webhook timestamp
       return existingByInstance;
     }
     
@@ -208,20 +246,17 @@ class Campaign {
       const updateData = {
         campaign_instance: data.campaign_instance
       };
-      // Only set started_at if it's null/invalid (fix invalid dates from old logic)
-      if (!this.isValidDate(existingByName.started_at)) {
-        // Try to backfill from events first, otherwise use webhook timestamp
-        const backfilled = await this.backfillStartDateFromEvents(existingByName.id);
-        if (backfilled) {
-          updateData.started_at = backfilled.started_at;
-        } else {
-          updateData.started_at = data.started_at;
-        }
+      
+      // Always backfill from events to ensure start date is accurate
+      const backfilled = await this.backfillStartDateFromEvents(existingByName.id);
+      if (backfilled) {
+        updateData.started_at = backfilled.started_at;
       }
+      
       return await this.update(existingByName.id, updateData);
     }
     
-    // Create new campaign with the webhook's timestamp as started_at
+    // Create new campaign - start date will be updated when first event arrives
     return await this.create(data);
   }
 

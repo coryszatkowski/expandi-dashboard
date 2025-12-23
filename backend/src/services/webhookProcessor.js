@@ -222,7 +222,7 @@ class WebhookProcessor {
    * Process Campaign from webhook data
    * @param {Object} messengerData - Messenger data from webhook
    * @param {string} profileId - Profile UUID
-   * @param {Object} payload - Full webhook payload (for timestamp extraction)
+   * @param {Object} payload - Full webhook payload (not used for start date - we use events instead)
    * @returns {Object} Campaign
    */
   static async processCampaign(messengerData, profileId, payload = null) {
@@ -235,32 +235,9 @@ class WebhookProcessor {
     // Parse campaign instance
     const parsed = Campaign.parseCampaignInstance(campaignInstance);
     
-    // Extract start date from webhook's fired_datetime (first webhook for this campaign)
-    // Convert webhook timestamp format "2025-10-14 17:50:33.104655+00:00" to ISO 8601
-    let startedAt = new Date().toISOString(); // Fallback to current time
-    
-    if (payload?.hook?.fired_datetime) {
-      try {
-        // Convert "2025-10-14 17:50:33.104655+00:00" to ISO 8601 format
-        const webhookTimestamp = payload.hook.fired_datetime;
-        // Replace space with T and convert timezone format from +00:00 to +0000 or Z
-        let isoTimestamp = webhookTimestamp.replace(' ', 'T');
-        // Handle timezone: convert +00:00 to Z (UTC) or +HH:MM to +HHMM
-        if (isoTimestamp.endsWith('+00:00')) {
-          isoTimestamp = isoTimestamp.replace('+00:00', 'Z');
-        } else {
-          // Replace timezone colon: +05:30 -> +0530
-          isoTimestamp = isoTimestamp.replace(/([+-]\d{2}):(\d{2})$/, '$1$2');
-        }
-        // Parse and convert to ISO 8601
-        const date = new Date(isoTimestamp);
-        if (!isNaN(date.getTime())) {
-          startedAt = date.toISOString();
-        }
-      } catch (error) {
-        console.warn('Failed to parse webhook fired_datetime, using fallback:', error);
-      }
-    }
+    // Campaign start date will be set from the first event, not from webhook timestamp
+    // Use current time as initial placeholder (will be updated when first event arrives)
+    const startedAt = new Date().toISOString();
 
     // Find or create campaign
     const campaign = await Campaign.findOrCreate({
@@ -382,9 +359,17 @@ class WebhookProcessor {
       eventData.replied_at = fullPayload.hook?.fired_datetime || new Date().toISOString();
     }
 
+    // Add created_at timestamp (will be set when event is created)
+    const now = new Date().toISOString();
+    eventData.created_at = now;
+
     // Create new event
     const event = await Event.create(eventData);
     console.log(`✅ New event created: ${eventType} for contact ${finalContactId}`);
+
+    // Update campaign start date from this event if it's earlier
+    // Campaign start dates are always set from the first event
+    await Campaign.updateStartDateFromEvent(campaignId, eventData);
 
     return event;
   }
