@@ -387,7 +387,7 @@ class AnalyticsService {
       }
     }
 
-    // Build date conditions
+    // Build date conditions for filtering
     let startUTC = null;
     let endUTC = null;
     
@@ -401,104 +401,108 @@ class AnalyticsService {
       endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
     }
 
-    // Build WHERE clause conditions and parameters for each UNION query
-    // We need to build them separately to ensure parameter order matches ? placeholders
-    let invitesDateFilter = '';
-    let connectionsDateFilter = '';
-    let repliesDateFilter = '';
-    const allParams = [];
-    
-    // Parameters for first UNION query (invites)
-    allParams.push(...campaignIds);
+    // Use database-agnostic date extraction
+    const isPostgreSQL = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres');
+    const dateExtract = isPostgreSQL ? `(invited_at::date)` : `DATE(invited_at)`;
+    const dateExtractConn = isPostgreSQL ? `(connected_at::date)` : `DATE(connected_at)`;
+    const dateExtractRepl = isPostgreSQL ? `(replied_at::date)` : `DATE(replied_at)`;
+
+    // Query each metric type separately to avoid complex UNION parameter binding issues
+    const invitesParams = [...campaignIds];
+    let invitesWhere = 'invited_at IS NOT NULL';
     if (startUTC) {
-      invitesDateFilter += ' AND invited_at >= ?';
-      allParams.push(startUTC);
+      invitesWhere += ' AND invited_at >= ?';
+      invitesParams.push(startUTC);
     }
     if (endUTC) {
-      invitesDateFilter += ' AND invited_at <= ?';
-      allParams.push(endUTC);
-    }
-    
-    // Parameters for second UNION query (connections)
-    allParams.push(...campaignIds);
-    if (startUTC) {
-      connectionsDateFilter += ' AND connected_at >= ?';
-      allParams.push(startUTC);
-    }
-    if (endUTC) {
-      connectionsDateFilter += ' AND connected_at <= ?';
-      allParams.push(endUTC);
-    }
-    
-    // Parameters for third UNION query (replies)
-    allParams.push(...campaignIds);
-    if (startUTC) {
-      repliesDateFilter += ' AND replied_at >= ?';
-      allParams.push(startUTC);
-    }
-    if (endUTC) {
-      repliesDateFilter += ' AND replied_at <= ?';
-      allParams.push(endUTC);
+      invitesWhere += ' AND invited_at <= ?';
+      invitesParams.push(endUTC);
     }
 
-    // Get actual data from database - count by date using the specific timestamp for each metric
-    // We need to union results for each event type to get accurate dates
-    // Use database-agnostic date extraction (PostgreSQL uses ::date, SQLite uses DATE())
-    const isPostgreSQL = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres');
-    const dateExtract = isPostgreSQL 
-      ? `(invited_at::date)`
-      : `DATE(invited_at)`;
-    const dateExtractConn = isPostgreSQL 
-      ? `(connected_at::date)`
-      : `DATE(connected_at)`;
-    const dateExtractRepl = isPostgreSQL 
-      ? `(replied_at::date)`
-      : `DATE(replied_at)`;
-    
-    const actualData = await db.selectAll(`
-      SELECT 
-        date,
-        SUM(invites) as invites,
-        SUM(connections) as connections,
-        SUM(replies) as replies
-      FROM (
+    const connectionsParams = [...campaignIds];
+    let connectionsWhere = 'connected_at IS NOT NULL';
+    if (startUTC) {
+      connectionsWhere += ' AND connected_at >= ?';
+      connectionsParams.push(startUTC);
+    }
+    if (endUTC) {
+      connectionsWhere += ' AND connected_at <= ?';
+      connectionsParams.push(endUTC);
+    }
+
+    const repliesParams = [...campaignIds];
+    let repliesWhere = 'replied_at IS NOT NULL';
+    if (startUTC) {
+      repliesWhere += ' AND replied_at >= ?';
+      repliesParams.push(startUTC);
+    }
+    if (endUTC) {
+      repliesWhere += ' AND replied_at <= ?';
+      repliesParams.push(endUTC);
+    }
+
+    // Get data for each metric type separately
+    const [invitesData, connectionsData, repliesData] = await Promise.all([
+      db.selectAll(`
         SELECT 
           ${dateExtract} as date,
-          COUNT(DISTINCT contact_id) as invites,
-          0 as connections,
-          0 as replies
+          COUNT(DISTINCT contact_id) as invites
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND invited_at IS NOT NULL${invitesDateFilter}
+        AND ${invitesWhere}
         GROUP BY ${dateExtract}
-        
-        UNION ALL
-        
+        ORDER BY date ASC
+      `, invitesParams),
+      db.selectAll(`
         SELECT 
           ${dateExtractConn} as date,
-          0 as invites,
-          COUNT(DISTINCT contact_id) as connections,
-          0 as replies
+          COUNT(DISTINCT contact_id) as connections
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND connected_at IS NOT NULL${connectionsDateFilter}
+        AND ${connectionsWhere}
         GROUP BY ${dateExtractConn}
-        
-        UNION ALL
-        
+        ORDER BY date ASC
+      `, connectionsParams),
+      db.selectAll(`
         SELECT 
           ${dateExtractRepl} as date,
-          0 as invites,
-          0 as connections,
           COUNT(DISTINCT contact_id) as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
-        AND replied_at IS NOT NULL${repliesDateFilter}
+        AND ${repliesWhere}
         GROUP BY ${dateExtractRepl}
-      ) combined
-      GROUP BY date
-      ORDER BY date ASC
-    `, allParams);
+        ORDER BY date ASC
+      `, repliesParams)
+    ]);
+
+    // Combine results by date
+    const dateMap = new Map();
+    
+    invitesData.forEach(row => {
+      const dateStr = typeof row.date === 'string' ? row.date : new Date(row.date).toISOString().split('T')[0];
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { date: dateStr, invites: 0, connections: 0, replies: 0 });
+      }
+      dateMap.get(dateStr).invites = parseInt(row.invites) || 0;
+    });
+    
+    connectionsData.forEach(row => {
+      const dateStr = typeof row.date === 'string' ? row.date : new Date(row.date).toISOString().split('T')[0];
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { date: dateStr, invites: 0, connections: 0, replies: 0 });
+      }
+      dateMap.get(dateStr).connections = parseInt(row.connections) || 0;
+    });
+    
+    repliesData.forEach(row => {
+      const dateStr = typeof row.date === 'string' ? row.date : new Date(row.date).toISOString().split('T')[0];
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { date: dateStr, invites: 0, connections: 0, replies: 0 });
+      }
+      dateMap.get(dateStr).replies = parseInt(row.replies) || 0;
+    });
+
+    const actualData = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     // If no date range specified, return actual data
     if (!options.start_date || !options.end_date) {
