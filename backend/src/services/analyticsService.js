@@ -963,7 +963,8 @@ class AnalyticsService {
    * @returns {Array} Array of contact objects with progress status
    */
   static async getCampaignContacts(campaignId, options = {}) {
-    const { search, status: statusFilter, sortBy, sortOrder, start_date, end_date } = options;
+    try {
+      const { search, status: statusFilter, sortBy, sortOrder, start_date, end_date } = options;
 
     // Format dates consistently - use space-separated format like timeline
     let startUTC = null;
@@ -1043,6 +1044,12 @@ class AnalyticsService {
     // For each contact, get their latest timestamps
     const contactsWithStatus = [];
     for (const contact of contacts) {
+      // Skip if contact_id is missing
+      if (!contact.contact_id) {
+        console.warn('Skipping contact with missing contact_id:', contact);
+        continue;
+      }
+      
       // Get the latest event for each type
       const latestInvite = await db.selectOne(`
         SELECT invited_at
@@ -1071,20 +1078,22 @@ class AnalyticsService {
         LIMIT 1
       `, [campaignId, contact.contact_id]);
       
-      // If no reply with timestamp, get the earliest reply by conversation_status
+      // If no reply with timestamp, get the earliest reply by conversation_status (case-insensitive)
       if (!firstReply) {
         firstReply = await db.selectOne(`
           SELECT replied_at, conversation_status
           FROM events 
           WHERE campaign_id = ? AND contact_id = ? 
-          AND conversation_status = 'Replied'
+          AND LOWER(conversation_status) = 'replied'
           ORDER BY created_at ASC
           LIMIT 1
         `, [campaignId, contact.contact_id]);
       }
       
-      // Determine status
-      const hasReplied = firstReply?.replied_at || firstReply?.conversation_status === 'Replied';
+      // Determine status (check both replied_at and conversation_status, case-insensitive)
+      const hasReplied = firstReply?.replied_at || 
+        (firstReply?.conversation_status && 
+         firstReply.conversation_status.toLowerCase() === 'replied');
       let status;
       if (hasReplied) {
         status = 'Replied';
@@ -1143,6 +1152,12 @@ class AnalyticsService {
     }
 
     return contactsWithStatus;
+    } catch (error) {
+      console.error('Error in getCampaignContacts:', error);
+      console.error('campaignId:', campaignId);
+      console.error('options:', options);
+      throw error;
+    }
   }
 
   /**
