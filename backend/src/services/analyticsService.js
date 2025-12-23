@@ -442,6 +442,18 @@ class AnalyticsService {
 
     // Get actual data from database - count by date using the specific timestamp for each metric
     // We need to union results for each event type to get accurate dates
+    // Use database-agnostic date extraction (PostgreSQL uses ::date, SQLite uses DATE())
+    const isPostgreSQL = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres');
+    const dateExtract = isPostgreSQL 
+      ? `(invited_at::date)`
+      : `DATE(invited_at)`;
+    const dateExtractConn = isPostgreSQL 
+      ? `(connected_at::date)`
+      : `DATE(connected_at)`;
+    const dateExtractRepl = isPostgreSQL 
+      ? `(replied_at::date)`
+      : `DATE(replied_at)`;
+    
     const actualData = await db.selectAll(`
       SELECT 
         date,
@@ -450,38 +462,38 @@ class AnalyticsService {
         SUM(replies) as replies
       FROM (
         SELECT 
-          DATE(invited_at) as date,
+          ${dateExtract} as date,
           COUNT(DISTINCT contact_id) as invites,
           0 as connections,
           0 as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
         AND invited_at IS NOT NULL${invitesDateFilter}
-        GROUP BY DATE(invited_at)
+        GROUP BY ${dateExtract}
         
         UNION ALL
         
         SELECT 
-          DATE(connected_at) as date,
+          ${dateExtractConn} as date,
           0 as invites,
           COUNT(DISTINCT contact_id) as connections,
           0 as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
         AND connected_at IS NOT NULL${connectionsDateFilter}
-        GROUP BY DATE(connected_at)
+        GROUP BY ${dateExtractConn}
         
         UNION ALL
         
         SELECT 
-          DATE(replied_at) as date,
+          ${dateExtractRepl} as date,
           0 as invites,
           0 as connections,
           COUNT(DISTINCT contact_id) as replies
         FROM events
         WHERE campaign_id IN (${campaignIds.map(() => '?').join(',')})
         AND replied_at IS NOT NULL${repliesDateFilter}
-        GROUP BY DATE(replied_at)
+        GROUP BY ${dateExtractRepl}
       ) combined
       GROUP BY date
       ORDER BY date ASC
