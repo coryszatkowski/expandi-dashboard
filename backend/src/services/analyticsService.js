@@ -1124,21 +1124,73 @@ class AnalyticsService {
     }
     
     // Apply Status Filtering - filter by actual events (invited, connected, replied)
+    // AND ensure the event timestamp is within the date range if dates are specified
     // rather than derived status, so filtering shows all contacts at that stage
     // regardless of whether they've progressed further
     if (statusFilter && statusFilter !== 'All') {
       switch (statusFilter) {
         case 'Invited':
           // Show all contacts who have been invited (regardless of connection/reply status)
-          contactsWithStatus = contactsWithStatus.filter(c => c.invited);
+          // But only if invited_at is within the date range (if dates are specified)
+          contactsWithStatus = contactsWithStatus.filter(c => {
+            if (!c.invited) return false;
+            if (!start_date && !end_date) return true; // No date filter, show all invited
+            
+            const invitedDate = c.invited_at ? new Date(c.invited_at) : null;
+            if (!invitedDate) return false;
+            
+            if (start_date) {
+              const start = new Date(start_date + 'T00:00:00');
+              if (invitedDate < start) return false;
+            }
+            if (end_date) {
+              const end = new Date(end_date + 'T23:59:59.999');
+              if (invitedDate > end) return false;
+            }
+            return true;
+          });
           break;
         case 'Connected':
           // Show all contacts who have connected (regardless of reply status)
-          contactsWithStatus = contactsWithStatus.filter(c => c.connected);
+          // But only if connected_at is within the date range (if dates are specified)
+          contactsWithStatus = contactsWithStatus.filter(c => {
+            if (!c.connected) return false;
+            if (!start_date && !end_date) return true; // No date filter, show all connected
+            
+            const connectedDate = c.connected_at ? new Date(c.connected_at) : null;
+            if (!connectedDate) return false;
+            
+            if (start_date) {
+              const start = new Date(start_date + 'T00:00:00');
+              if (connectedDate < start) return false;
+            }
+            if (end_date) {
+              const end = new Date(end_date + 'T23:59:59.999');
+              if (connectedDate > end) return false;
+            }
+            return true;
+          });
           break;
         case 'Replied':
           // Show all contacts who have replied
-          contactsWithStatus = contactsWithStatus.filter(c => c.replied);
+          // But only if replied_at is within the date range (if dates are specified)
+          contactsWithStatus = contactsWithStatus.filter(c => {
+            if (!c.replied) return false;
+            if (!start_date && !end_date) return true; // No date filter, show all replied
+            
+            const repliedDate = c.replied_at ? new Date(c.replied_at) : null;
+            if (!repliedDate) return false;
+            
+            if (start_date) {
+              const start = new Date(start_date + 'T00:00:00');
+              if (repliedDate < start) return false;
+            }
+            if (end_date) {
+              const end = new Date(end_date + 'T23:59:59.999');
+              if (repliedDate > end) return false;
+            }
+            return true;
+          });
           break;
         default:
           // For backward compatibility, fall back to conversation_status matching
