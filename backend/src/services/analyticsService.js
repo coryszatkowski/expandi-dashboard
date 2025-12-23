@@ -246,8 +246,9 @@ class AnalyticsService {
       if (isNaN(startOfDay.getTime())) {
         throw new Error(`Invalid start_date: ${options.start_date}`);
       }
-      // Use space-separated format to match other timeline queries
-      const startUTC = startOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      // Use ISO string format for PostgreSQL timestamp with timezone comparison
+      // PostgreSQL expects timestamps with timezone, so use full ISO format
+      const startUTC = startOfDay.toISOString();
       invitesCondition += ` AND invited_at >= ?`;
       connectionsCondition += ` AND connected_at >= ?`;
       repliesCondition += ` AND replied_at >= ?`;
@@ -260,13 +261,14 @@ class AnalyticsService {
       if (options.end_date.includes('T')) {
         endOfDay = new Date(options.end_date);
       } else {
-        endOfDay = new Date(options.end_date + 'T23:59:59');
+        endOfDay = new Date(options.end_date + 'T23:59:59.999');
       }
       if (isNaN(endOfDay.getTime())) {
         throw new Error(`Invalid end_date: ${options.end_date}`);
       }
-      // Use space-separated format to match other timeline queries
-      const endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
+      // Use ISO string format for PostgreSQL timestamp with timezone comparison
+      // PostgreSQL expects timestamps with timezone, so use full ISO format
+      const endUTC = endOfDay.toISOString();
       invitesCondition += ` AND invited_at <= ?`;
       connectionsCondition += ` AND connected_at <= ?`;
       repliesCondition += ` AND replied_at <= ?`;
