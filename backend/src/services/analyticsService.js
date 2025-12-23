@@ -401,16 +401,17 @@ class AnalyticsService {
       endUTC = endOfDay.toISOString().replace('T', ' ').replace('Z', '');
     }
 
-    // Build WHERE clause conditions directly in SQL to avoid parameter binding issues
+    // Build WHERE clause conditions and parameters for each UNION query
+    // We need to build them separately to ensure parameter order matches ? placeholders
     let invitesDateFilter = '';
     let connectionsDateFilter = '';
     let repliesDateFilter = '';
     const allParams = [];
     
-    // First UNION query: invites
+    // Parameters for first UNION query (invites)
     allParams.push(...campaignIds);
     if (startUTC) {
-      invitesDateFilter = ' AND invited_at >= ?';
+      invitesDateFilter += ' AND invited_at >= ?';
       allParams.push(startUTC);
     }
     if (endUTC) {
@@ -418,10 +419,10 @@ class AnalyticsService {
       allParams.push(endUTC);
     }
     
-    // Second UNION query: connections
+    // Parameters for second UNION query (connections)
     allParams.push(...campaignIds);
     if (startUTC) {
-      connectionsDateFilter = ' AND connected_at >= ?';
+      connectionsDateFilter += ' AND connected_at >= ?';
       allParams.push(startUTC);
     }
     if (endUTC) {
@@ -429,10 +430,10 @@ class AnalyticsService {
       allParams.push(endUTC);
     }
     
-    // Third UNION query: replies
+    // Parameters for third UNION query (replies)
     allParams.push(...campaignIds);
     if (startUTC) {
-      repliesDateFilter = ' AND replied_at >= ?';
+      repliesDateFilter += ' AND replied_at >= ?';
       allParams.push(startUTC);
     }
     if (endUTC) {
