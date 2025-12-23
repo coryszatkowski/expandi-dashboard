@@ -1061,14 +1061,27 @@ class AnalyticsService {
       `, [campaignId, contact.contact_id]);
       
       // Get the FIRST reply (earliest timestamp), not the latest
-      const firstReply = await db.selectOne(`
+      // First try to get reply with replied_at timestamp, then fall back to conversation_status
+      let firstReply = await db.selectOne(`
         SELECT replied_at, conversation_status
         FROM events 
         WHERE campaign_id = ? AND contact_id = ? 
-        AND (replied_at IS NOT NULL OR conversation_status = 'Replied')
-        ORDER BY COALESCE(replied_at, created_at) ASC
+        AND replied_at IS NOT NULL
+        ORDER BY replied_at ASC
         LIMIT 1
       `, [campaignId, contact.contact_id]);
+      
+      // If no reply with timestamp, get the earliest reply by conversation_status
+      if (!firstReply) {
+        firstReply = await db.selectOne(`
+          SELECT replied_at, conversation_status
+          FROM events 
+          WHERE campaign_id = ? AND contact_id = ? 
+          AND conversation_status = 'Replied'
+          ORDER BY created_at ASC
+          LIMIT 1
+        `, [campaignId, contact.contact_id]);
+      }
       
       // Determine status
       const hasReplied = firstReply?.replied_at || firstReply?.conversation_status === 'Replied';
